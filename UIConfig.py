@@ -1,19 +1,35 @@
+import tkinter
 import tkinter.filedialog
-
 import ttkbootstrap as ttk
-from functools import partial
+from Modules.LogOutput import Log, LL
 
 
 class Function:
     @staticmethod
-    def selectFile(in_type):
+    def selectFile(in_apis, in_type):
         file_path = tkinter.filedialog.askopenfilename(filetypes=in_type)
+
+        in_apis.delete(0, tkinter.END)
+        in_apis.insert(0, file_path)
         return file_path
 
     @staticmethod
-    def selectPath():
+    def selectPath(in_apis):
         file_path = tkinter.filedialog.askdirectory()
+        in_apis.delete(0, tkinter.END)
+        in_apis.insert(0, file_path)
         return file_path
+
+    @staticmethod
+    def splitLists(in_data, in_logs, in_name, prompts=""):
+        outputs = in_data.split("\n")
+        results = []
+        for gpu_name in outputs:
+            if len(gpu_name) > 0:
+                in_logs("返回%s列表: %s" %
+                        (in_name, gpu_name), prompts, LL.S_)
+                results.append(gpu_name)
+        return results
 
 
 class UIConfig:
@@ -29,15 +45,16 @@ class UIConfig:
                 "width": 60,
                 "lines": 4,
                 "color": "info",
-                "addon": {
-                    "auto": {
-                        "entry": ttk.Checkbutton,
-                        "start": None,
-                        "width": 7,
-                        "lines": 1,
-                        "color": "success",
-                    }
-                }
+                "saves": ttk.StringVar,
+                "addon": {}
+            },
+            "aur_boot": {
+                "entry": ttk.Checkbutton,
+                "start": None,
+                "lines": 1,
+                "color": "primary",
+                "saves": ttk.BooleanVar,
+                "addon": {}
             },
             "iso_file": {
                 "entry": ttk.Entry,
@@ -45,10 +62,11 @@ class UIConfig:
                 "width": 60,
                 "lines": 4,
                 "color": "info",
+                "saves": ttk.StringVar,
                 "addon": {
                     "open": {
                         "entry": ttk.Button,
-                        "start": Function.selectPath,
+                        "start": None,
                         "width": 7,
                         "lines": 1,
                         "color": "info",
@@ -61,13 +79,31 @@ class UIConfig:
                 "width": 60,
                 "lines": 4,
                 "color": "info",
+                "saves": ttk.StringVar,
                 "addon": {
                     "open": {
                         "entry": ttk.Button,
-                        "start": Function.selectPath,
+                        "start": None,
                         "width": 7,
                         "lines": 1,
                         "color": "info",
+                    }
+                }
+            },
+            "net_name": {
+                "entry": ttk.Combobox,
+                "start": None,
+                "width": 58,
+                "lines": 4,
+                "color": "info",
+                "saves": ttk.StringVar,
+                "addon": {
+                    "open": {
+                        "entry": ttk.Button,
+                        "start": None,
+                        "width": 7,
+                        "lines": 1,
+                        "color": "primary",
                     }
                 }
             },
@@ -78,6 +114,7 @@ class UIConfig:
                 "lines": 1,
                 "color": "info",
                 "value": [6],
+                "saves": ttk.IntVar,
                 "addon": {}
             },
             "vhd_type": {
@@ -87,6 +124,7 @@ class UIConfig:
                 "lines": 1,
                 "color": "info",
                 "value": ["VHDX", "VHD"],
+                "saves": ttk.StringVar,
                 "addon": {}
             },
             "use_boot": {
@@ -96,6 +134,7 @@ class UIConfig:
                 "lines": 1,
                 "color": "info",
                 "value": ["UEFI"],
+                "saves": ttk.StringVar,
                 "addon": {}
             },
             "vhd_size": {
@@ -105,6 +144,7 @@ class UIConfig:
                 "lines": 1,
                 "color": "info",
                 "value": ["20GB", "32GB", "64GB", "128GB"],
+                "saves": ttk.StringVar,
                 "addon": {}
             },
             "mem_size": {
@@ -113,6 +153,7 @@ class UIConfig:
                 "width": 7,
                 "lines": 1,
                 "value": ["4GB", "8GB", "16GB", "32GB", "64GB"],
+                "saves": ttk.StringVar,
                 "color": "info",
                 "addon": {}
             },
@@ -125,6 +166,7 @@ class UIConfig:
                 "value": [2, 4, 6, 8,
                           10, 12, 14, 16,
                           18, 20, 24, 32],
+                "saves": ttk.IntVar,
                 "addon": {}
             },
             "gpu_name": {
@@ -133,13 +175,14 @@ class UIConfig:
                 "width": 23,
                 "lines": 2,
                 "color": "info",
+                "saves": tkinter.StringVar,
                 "addon": {
                     "open": {
                         "entry": ttk.Button,
-                        "start": Function.selectPath,
+                        "start": None,
                         "width": 7,
                         "lines": 1,
-                        "color": "secondary",
+                        "color": "primary",
                     }
                 }
             },
@@ -152,6 +195,7 @@ class UIConfig:
                 "value": [10, 20, 30, 40,
                           50, 60, 70, 80,
                           90, 95, 100, 5],
+                "saves": ttk.IntVar,
                 "addon": {}
             },
             "par_name": {
@@ -160,6 +204,7 @@ class UIConfig:
                 "width": 25,
                 "lines": 2,
                 "color": "secondary",
+                "saves": ttk.StringVar,
                 "addon": {}
             },
             "par_pass": {
@@ -168,6 +213,7 @@ class UIConfig:
                 "width": 26,
                 "lines": 2,
                 "color": "secondary",
+                "saves": ttk.StringVar,
                 "addon": {}
             },
             "win_name": {
@@ -176,6 +222,7 @@ class UIConfig:
                 "width": 25,
                 "lines": 2,
                 "color": "secondary",
+                "saves": ttk.StringVar,
                 "addon": {}
             },
             "win_pass": {
@@ -184,6 +231,7 @@ class UIConfig:
                 "width": 26,
                 "lines": 2,
                 "color": "secondary",
+                "saves": ttk.StringVar,
                 "addon": {}
             },
             "bar_deal": {
@@ -196,16 +244,17 @@ class UIConfig:
                     "text": {
                         "entry": ttk.Label,
                         "start": None,
-                        "width": 1,
+                        "width": 14,
                         "lines": 1,
-                        "color": "light",
+                        "saves": ttk.StringVar,
+                        "color": "default",
                     },
                     "exec": {
                         "entry": ttk.Button,
                         "start": None,
                         "width": 7,
                         "lines": 1,
-                        "color": "primary",
+                        "color": "success",
                     }
                 }
             },
