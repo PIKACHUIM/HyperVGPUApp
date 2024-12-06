@@ -115,17 +115,14 @@ class VGPUTool:
         self.main.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
     def getGPUCard(self):
-        # command = 'Start-Process powershell -Verb RunAs -ArgumentList "-file",".\PreCheck.ps1"'
-        # command = ('powershell "$Devices = (Get-WmiObject -Class "Msvm_PartitionableGpu" -ComputerName $env:COMPUTERNAME -Namespace "ROOT\\virtualization\\v2").name\n'
-        #            'Foreach ($GPU in $Devices) {\n'
-        #            '$GPUParse = $GPU.Split(\'#\')[1]\n'
-        #            'Get-WmiObject Win32_PNPSignedDriver | where {($_.HardwareID -eq "PCI\\$GPUParse")} | select DeviceName -ExpandProperty DeviceName\n'
-        #            '}\n\n"')
         command = 'powershell .\\PreCheck.ps1'
         print(command)
         process = subprocess.run(command, shell=True, text=True, capture_output=True)
-        outputs = process.stdout
+        outputs = process.stdout.split("\n")
         print(outputs)
+        self.view['gpu_name']['entry']['values'] = outputs
+        self.view['gpu_name']['entry'].current(0)
+        return outputs
 
 
 if __name__ == "__main__":
