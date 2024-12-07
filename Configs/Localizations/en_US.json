@@ -1,7 +1,7 @@
 {
   "app_name": "Hyper-V GPU Virtualization Manage Tool",
   "gpv_init": "⚒️ Para-Virtualization Create",
-  "gpv_conf": "🔧 Para-Virtualization Config",
+  "gpv_conf": "🔧 PCIE-Virtualization Config",
   "dda_conf": "🔗 Discrete Device Assignment",
   "about_us": "ℹ️ About"
 }
