@@ -12,6 +12,7 @@ import ttkbootstrap as ttk
 from ttkbootstrap import *
 
 from Modules.GPUCreate import GPUCreate
+from Modules.PCIConfig import PCIConfig
 from Modules.PS1Loader import PS1Loader
 from Modules.HintEntry import HintEntry
 from Modules.LogOutput import Log, LL
@@ -22,6 +23,7 @@ class VGPUTool:
     def __init__(self):
         # 创建窗口 ------------------------------------------------------------
         self.text = None
+
         self.view = {}
         self.root = tk.Tk()
         self.head = ttk.Style()
@@ -38,15 +40,16 @@ class VGPUTool:
         # 界面配置 ============================================================
         self.main = ttk.Notebook(self.root)
         self.page = {i: ttk.Frame(self.root) for i in UIConfig.page}
-        self.logs = Log("GPULoader",
-                        "", "", sub_files=None).log
+        self.logs = Log("GPULoader", "", "").log
+        self.pci_last = None  # PCIE设置界面数据存储
+        self.pci_list = {}
         self.components()
-        self.update_gpu()
-        self.update_dev()
-        self.update_net()
+        self.update_gpu_list()
+        self.update_net_list()
+        self.update_vmx_list()
+        self.update_dda_list()
         self.config_exe()
         self.config_txt()
-        self.update_vmx()
 
         # self.result_get()
         self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
@@ -182,28 +185,33 @@ class VGPUTool:
             self.main.add(tab_apis, text=self.i18nString(tab_name))
         self.main.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
+    # 设置按钮绑定 ################################################################
     def config_exe(self):
         self.view["gpv_init"]['iso_file']['addon']['open'].config(command=partial(
             Function.selectFile, self.view["gpv_init"]['iso_file']['entry'], [("ISO File", ".iso")]))
         self.view["gpv_init"]['vhd_path']['addon']['open'].config(command=partial(
             Function.selectPath, self.view["gpv_init"]['vhd_path']['entry']))
-        self.view["gpv_init"]['gpu_name']['addon']['open'].config(command=self.update_gpu)
-        self.view["gpv_init"]['bar_deal']['addon']['exec'].config(command=self.submit_gpu)
-        self.view["gpv_init"]['net_name']['addon']['open'].config(command=self.update_net)
+        self.view["gpv_init"]['gpu_name']['addon']['open'].config(command=self.update_gpu_list)
+        self.view["gpv_conf"]['gpu_name']['addon']['open'].config(command=self.update_gpu_list)
+        self.view["gpv_init"]['bar_deal']['addon']['exec'].config(command=self.submit_gpu_list)
+        self.view["gpv_init"]['net_name']['addon']['open'].config(command=self.update_net_list)
 
+    # 设置输入绑定 ################################################################
     def config_txt(self):
-        self.view["gpv_init"]['vmx_name']['saves'].trace('w', self.result_get)
-        self.view["gpv_init"]['iso_file']['saves'].trace('w', self.result_get)
-        self.view["gpv_init"]['vhd_path']['saves'].trace('w', self.result_get)
-        self.view["gpv_init"]['gpu_name']['saves'].trace('w', self.result_get)
-        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.result_get)
-        self.view["gpv_init"]['win_name']['saves'].trace('w', self.result_get)
-        self.view["gpv_init"]['win_pass']['saves'].trace('w', self.result_get)
-        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.result_get)
+        self.view["gpv_init"]['vmx_name']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['iso_file']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['vhd_path']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['gpu_name']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['win_name']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['win_pass']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.config_gpu_load)
         self.view["gpv_init"]['aur_boot']['saves'].set(False)
         self.view["gpv_init"]['aur_boot']['entry'].state(['!alternate'])
+        self.view["gpv_conf"]['vmx_list']['saves'].trace('w', self.update_dda_last)
 
-    def checks_var(self, in_var):
+    # 检查输入内容 ################################################################
+    def config_var_load(self, in_var):
         if len(self.view["gpv_init"][in_var]['saves'].get()) <= 0:
             self.view["gpv_init"][in_var]['entry'].config(bootstyle="danger")
             return False
@@ -211,32 +219,87 @@ class VGPUTool:
             self.view["gpv_init"][in_var]['entry'].config(bootstyle="info")
             return True
 
-    def result_get(self, *args):
+    # 遍历输入内容 ################################################################
+    def config_gpu_load(self, *args):
         check_flag = True
         check_list = ["vmx_name", "iso_file", "vhd_path", "gpu_name"]
         if self.view["gpv_init"]['aur_boot']['saves'].get():
             check_list.append("win_name")
             check_list.append("win_pass")
         for var_name in check_list:
-            check_flag = check_flag and self.checks_var(var_name)
+            check_flag = check_flag and self.config_var_load(var_name)
         if check_flag:
             self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.NORMAL)
         else:
             self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.DISABLED)
 
-    def update_gpu(self):
+    # 更新当前直通设备 ##########################################################################
+    def config_dda_last(self):
+        counts = 0
+        # print(self.pci_list)
+        print(self.pci_last.dda_path_uuid)
+        tree_apis = self.view["gpv_conf"]['currents']['entry']
+        self.view["gpv_conf"]['currents']['entry'].delete(*tree_apis.get_children())
+        pci_name = ""
+        for pci_path in self.pci_last.dda_path_uuid:
+            if len(pci_path) > 0:
+                print(pci_path)
+                if self.pci_last.dda_path_uuid[pci_path] in self.pci_last.map_uuid_name:
+                    pci_name = self.pci_last.map_uuid_name[self.pci_last.dda_path_uuid[pci_path]]
+                counts += 1
+                tree_apis.insert('', counts, values=(
+                    "✔️",
+                    pci_path,
+                    pci_name,
+                    "/",
+                ))
+
+    # 设置当前直通设备 ##########################################################################
+    def submit_dda_list(self):
+        pass
+
+    # 设置虚拟设备管理 ##########################################################################
+    def submit_pci_page(self):
+        pass
+
+    # 获取当前直通设备 ##########################################################################
+    def update_dda_last(self, *args):
+        try:
+            self.view["gpv_conf"]['gpu_name']['entry'].config(state=tk.DISABLED)
+            self.view["gpv_conf"]['min_size']['entry'].config(state=tk.DISABLED)
+            self.view["gpv_conf"]['max_size']['entry'].config(state=tk.DISABLED)
+            self.view["gpv_conf"]['gpu_size']['entry'].config(state=tk.DISABLED)
+            # self.view["gpv_conf"]['currents']['entry'].config(state=tk.DISABLED)
+            select_vmx = self.view["gpv_conf"]['vmx_list']['saves'].get()
+            self.pci_last = PCIConfig(self.logs, select_vmx)
+            self.pci_last.get_all_data()
+            self.config_dda_last()
+            self.view["gpv_conf"]['gpu_name']['saves'].set(self.pci_last.gpu_name)
+            self.view["gpv_conf"]['gpu_size']['saves'].set(self.pci_last.gpu_size)
+            self.view["gpv_conf"]['min_size']['saves'].set(self.pci_last.min_size)
+            self.view["gpv_conf"]['max_size']['saves'].set(self.pci_last.max_size)
+        finally:
+            self.view["gpv_conf"]['gpu_name']['entry'].config(state=tk.NORMAL)
+            self.view["gpv_conf"]['min_size']['entry'].config(state=tk.NORMAL)
+            self.view["gpv_conf"]['max_size']['entry'].config(state=tk.NORMAL)
+            self.view["gpv_conf"]['gpu_size']['entry'].config(state=tk.NORMAL)
+            # self.view["gpv_conf"]['currents']['entry'].config(state=tk.NORMAL)
+
+    # 获取当前直虚拟显卡 ##########################################################################
+    def update_gpu_list(self):
         self.view["gpv_init"]['bar_deal']['saved']['text'].set(self.i18nString('gpu_name_load'))
         self.view["gpv_init"]['gpu_name']['addon']['open'].config(state=tk.DISABLED)
+        self.view["gpv_conf"]['gpu_name']['addon']['open'].config(state=tk.DISABLED)
         self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.DISABLED)
         self.view["gpv_init"]['gpu_name']['entry'].config(state=tk.DISABLED)
         self.view["gpv_init"]['bar_deal']['entry']['mode'] = 'indeterminate'
         self.view["gpv_init"]['bar_deal']['entry'].start(20)
         update_thread = PS1Loader("PreCheck.ps1")
-        loader_thread = threading.Thread(target=self.update_gpu_bak, args=(update_thread,))
+        loader_thread = threading.Thread(target=self.update_gpu_call, args=(update_thread,))
         update_thread.start()
         loader_thread.start()
 
-    def update_dev(self):
+    def update_dda_list(self):
         self.view["gpv_conf"]['pci_deal']['saved']['text'].set(self.i18nString('pci_list_load'))
         self.view["gpv_conf"]['add_pcie']['entry'].config(state=tk.DISABLED)
         self.view["gpv_conf"]['pci_save']['entry'].config(state=tk.DISABLED)
@@ -246,16 +309,17 @@ class VGPUTool:
         self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
         self.view["gpv_conf"]['pci_deal']['entry'].start(20)
         update_thread = PS1Loader("CheckDDA.ps1")
-        loader_thread = threading.Thread(target=self.update_dev_bak, args=(update_thread,))
+        loader_thread = threading.Thread(target=self.update_dda_call, args=(update_thread,))
         update_thread.start()
         loader_thread.start()
 
-    def update_gpu_bak(self, in_proc):
+    def update_gpu_call(self, in_proc):
         prompts = "update_gpu"
         while not in_proc.flag:
             time.sleep(0.1)
         self.view["gpv_init"]['gpu_name']['addon']['open'].config(state=tk.NORMAL)
         self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.NORMAL)
+        self.view["gpv_conf"]['gpu_name']['addon']['open'].config(state=tk.NORMAL)
         self.view["gpv_init"]['gpu_name']['entry'].config(state=tk.NORMAL)
         self.view["gpv_init"]['bar_deal']['entry']['mode'] = 'determinate'
         self.view["gpv_init"]['bar_deal']['entry'].stop()
@@ -266,9 +330,9 @@ class VGPUTool:
         self.view["gpv_conf"]['gpu_name']['entry']['values'] = in_data
         if len(in_data) > 0:
             self.view["gpv_init"]['gpu_name']['entry'].current(0)
-            self.view["gpv_conf"]['gpu_name']['entry'].current(0)
+            # self.view["gpv_conf"]['gpu_name']['entry'].current(0)
 
-    def update_dev_bak(self, in_proc):
+    def update_dda_call(self, in_proc):
         while not in_proc.flag:
             time.sleep(0.1)
         self.view["gpv_conf"]['pci_deal']['saved']['text'].set("")
@@ -277,19 +341,21 @@ class VGPUTool:
         self.view["gpv_conf"]['pci_load']['entry'].config(state=tk.NORMAL)
         self.view["gpv_conf"]['del_pcie']['entry'].config(state=tk.NORMAL)
         self.view["gpv_conf"]['pci_push']['entry'].config(state=tk.NORMAL)
-        self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
-        self.view["gpv_conf"]['pci_deal']['entry'].start(20)
+        self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'determinate'
+        self.view["gpv_conf"]['pci_deal']['entry'].stop()
+        self.view["gpv_conf"]['pci_deal']['entry']['value'] = 100
         tree = self.view["gpv_conf"]['disabled']['entry']
         self.view["gpv_conf"]['disabled']['entry'].delete(*tree.get_children())
         result = {}
         counts = 1
+        self.pci_list = {}
         for dev_line in in_proc.data.split("########")[1:]:
             if dev_line.startswith("\n"):
                 dev_line = dev_line[1:]
             if dev_line.endswith("\n"):
                 dev_line = dev_line[:-1]
             dev_line = dev_line.split("\n")
-            print(dev_line, "\n\n")
+            self.logs("获取设备列表: %s" % dev_line, "update_gpu", LL.D)
             if len(dev_line) >= 1:
                 result[dev_line[0]] = {
                     "name": dev_line[0],
@@ -298,6 +364,7 @@ class VGPUTool:
                     "flag": "✔️" if len(dev_line) >= 2 and \
                                     dev_line[1].find("Assignment can work") >= 0 else "❌"
                 }
+                self.pci_list[result[dev_line[0]]['path']] = result[dev_line[0]]
                 if result[dev_line[0]]["flag"] == "✔️":
                     tree.insert('', counts, values=(
                         result[dev_line[0]]['flag'],
@@ -306,8 +373,10 @@ class VGPUTool:
                         result[dev_line[0]]['text'],
                     ))
                 counts += 1
+        print(self.pci_list)
+        self.config_dda_last()
 
-    def update_net(self):
+    def update_net_list(self):
         prompts = "NetLoader"
         command = 'powershell \"Get-VMSwitch | Select-Object -ExpandProperty Name\"'
         self.logs("获取网卡命令: %s" % command, prompts, LL.D)
@@ -317,7 +386,7 @@ class VGPUTool:
             self.view["gpv_init"]['net_name']['entry']['values'] = results
             self.view["gpv_init"]['net_name']['entry'].current(0)
 
-    def update_vmx(self):
+    def update_vmx_list(self):
         prompts = "NetLoader"
         command = 'powershell \"Get-VM | ForEach-Object {$_.Name}\"'
         self.logs("获取虚拟机器: %s" % command, prompts, LL.D)
@@ -327,7 +396,7 @@ class VGPUTool:
         self.view["gpv_conf"]['vmx_list']['entry'].current(0)
         print(results)
 
-    def submit_gpu(self):
+    def submit_gpu_list(self):
         var_conf = ('$params = @{\n'
                     'VMName = "%s"\n'
                     'SourcePath = "%s"\n'

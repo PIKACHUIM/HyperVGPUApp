@@ -283,7 +283,7 @@ class UIConfig:
                     # }
                 }
             },
-            "low_size": {
+            "min_size": {
                 "entry": ttk.Combobox,
                 "start": None,
                 "width": 7,
@@ -321,10 +321,10 @@ class UIConfig:
                 "color": "info",
                 "highs": 6,
                 "table": {
-                    "dda_flag": 50,
-                    "pci_path": 150,
-                    "pci_name": 200,
-                    "pci_text": 200,
+                    "dda_flag": 40,
+                    "pci_path": 200,
+                    "pci_name": 250,
+                    "pci_text": 110,
                 },
                 "addon": {},
             },

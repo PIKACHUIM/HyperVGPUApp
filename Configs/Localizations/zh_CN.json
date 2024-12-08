@@ -32,7 +32,7 @@
   "vmx_list": "虚拟机名",
   "vmx_list_open": "刷新",
   "pci_list_load": "⏳读取中...请稍等",
-  "low_size": "PCI最低内存(MB)",
+  "min_size": "PCI最低内存(MB)",
   "max_size": "PCI最高内存(MB)",
   "add_pcie": "⬆\uFE0F添加设备",
   "pci_type": "总线类型",

@@ -69,10 +69,8 @@ class Log:
                  in_thread: str = "Undefined",  # 线程名称
                  in_module: str = "Undefined",  # 模块名称
                  functions: str = "CreatInit",  # 函数名称
-                 sub_files: [str, None] = "log",  # 后缀名
                  max_lines: [int, bool] = 92.00,  # 单行长
                  enable_line: bool = True,  # 启用行号输出
-                 stamps_time: str = None,  # 本次编号Stamp
                  ):
         # 初始化模块 -------------------------------------
         if in_module == "*":
@@ -88,22 +86,7 @@ class Log:
         self.threads = in_thread[:10]
         self.modules = in_module[:10]
         self.execute = functions[:11]
-        if stamps_time is None:
-            stamps_time = time.strftime(
-                "%m%d-%H%M%S",
-                time.localtime())
-        self.o_path = "RunTime/RunLogs/%s/%s/" % (
-            self.threads, stamps_time
-        )
-        if not os.path.exists(self.o_path):
-            try:
-                os.makedirs(self.o_path)
-            except (FileExistsError, OSError):
-                pass
-        if sub_files is not None:
-            self.o_file = os.path.join(self.o_path, in_module + ".%s" % sub_files)
-        else:
-            self.o_file = None
+
 
             # 输出日志 --------------------------------------------------------------------------
 
@@ -116,16 +99,15 @@ class Log:
             in_level: LL = LogLevel.DEBUG,
             # 消息显示的颜色，可以和等级不同 ------------
             in_color: [int, LL, None] = None,
-            backFlag: bool = False):
+            in_flags: bool = False):
         # 输出日志 -----------------------------------------------------------------------
         # 判断类型 ----------------------------------
         if type(in_level) is LogLevel:
-            if backFlag:
+            if in_flags:
                 in_level = LogLevel(in_level.value + 6)
             c_level = LogLevel.str(in_level)
-            n_level = LogLevel.str(in_level, False)
         else:
-            c_level = n_level = in_level
+            c_level = in_level
         # 重写模块 -----------------------------------
         if in_color is None:
             in_color: LogLevel = in_level
@@ -143,21 +125,9 @@ class Log:
         c_str = c_str + "\033[1;37;40m[" + "%-10s" % in_thread.center(10) + "]\033[0m"
         c_str = c_str + "\033[1;37;40m[" + "%-10s" % in_module.center(10) + "]\033[0m"
         c_str = c_str + "\033[1;37;40m[" + "%-8s" % in_funcs.center(11) + "]\033[0m"
-        n_str = c_str.replace(c_level, n_level)
-        n_str = n_str.replace("\033[1;37;40m[", "[").replace("]\033[0m", "]")
         c_str = c_str + c_level
         c_str = c_str + "\033[" + color[int(in_color.value)] + in_texts + "\033[0m"
-        n_str = n_str + in_texts
         print(c_str)
-        # 写入文件 -----------------------------------------------------------------------
-        if self.o_file is not None:
-            if not os.path.exists(self.o_path):
-                os.makedirs(self.o_path)
-            with open(self.o_file, 'a+') as out_file:
-                out_file.write(n_str + "\n")
-        if in_level.value in [LL.E.value, LL.E_.value, LL.F.value, LL.F_.value]:
-            traceback.print_exc()
-        # --------------------------------------------------------------------------------
 
     def ptr(self,
             # 重写函数名称，函数内部会使用 --------------
@@ -187,11 +157,11 @@ if __name__ == '__main__':
     logger_test.log("WARNING", in_level=LogLevel.WARNING)
     logger_test.log("ERROR", in_level=LogLevel.ERROR)
     logger_test.log("FATAL", in_level=LogLevel.FATAL)
-    logger_test.log("DEBUG", in_level=LogLevel.DEBUG, backFlag=True)
-    logger_test.log("SUCCESS", in_level=LogLevel.SUCCESS, backFlag=True)
-    logger_test.log("MESSAGE", in_level=LogLevel.MESSAGE, backFlag=True)
-    logger_test.log("WARNING", in_level=LogLevel.WARNING, backFlag=True)
-    logger_test.log("ERROR", in_level=LogLevel.ERROR, backFlag=True)
-    logger_test.log("FATAL", in_level=LogLevel.FATAL, backFlag=True)
+    logger_test.log("DEBUG", in_level=LogLevel.DEBUG, in_flags=True)
+    logger_test.log("SUCCESS", in_level=LogLevel.SUCCESS, in_flags=True)
+    logger_test.log("MESSAGE", in_level=LogLevel.MESSAGE, in_flags=True)
+    logger_test.log("WARNING", in_level=LogLevel.WARNING, in_flags=True)
+    logger_test.log("ERROR", in_level=LogLevel.ERROR, in_flags=True)
+    logger_test.log("FATAL", in_level=LogLevel.FATAL, in_flags=True)
     logger_test.log("great", in_level=LogLevel.great)
-    logger_test.log("great", in_level=LogLevel.great, backFlag=True)
+    logger_test.log("great", in_level=LogLevel.great, in_flags=True)

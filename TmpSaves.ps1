@@ -1,17 +1,17 @@
 $params = @{
-VMName = "TestGPU"
+VMName = "a"
 SourcePath = "D:/Vboxs/zh-cn_windows_11_enterprise_ltsc_2024_x64_dvd_cff9cd2d.iso"
 Edition    = 6
 VhdFormat  = "VHDX"
 DiskLayout = "UEFI"
-SizeBytes  = 20GB
+SizeBytes  = 32GB
 MemoryAmount = 8GB
 CPUCores = 8
 NetworkSwitch = "Wire Network Switch"
 VHDPath = "D:/Vboxs/Win11-GPU"
 UnattendPath = "$PSScriptRoot"+"\Scripts\autounattend.xml"
 GPUName = "NVIDIA GeForce RTX 3060 Ti"
-GPUResourceAllocationPercentage = 10
+GPUResourceAllocationPercentage = 50
 Team_ID = ""
 Key = ""
 Username = "pika"
@@ -19,7 +19,7 @@ Password = "IM0612"
 Autologon = "false"
 }
 
-﻿Import-Module $PSSCriptRoot\CopyFile.psm1
+Import-Module $PSSCriptRoot\CopyFile.psm1
 
 function Is-Administrator
 {
@@ -93,7 +93,6 @@ else{
         }
     else {
         Write-Host $ExitReason
-        Read-host -Prompt "Press any key to Exit..."
         Exit
         }
     }

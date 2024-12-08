@@ -13,9 +13,7 @@ class GPUCreate(threading.Thread):
         self.logs = Log(
             "GPULoader",
             "",
-            "",
-            sub_files=None
-        ).log
+            "").log
         self.in_processbar = in_processbar
         self.start_created = start_created
 
