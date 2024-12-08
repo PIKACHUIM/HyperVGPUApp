@@ -39,23 +39,28 @@ class PCIConfig:
         return True
 
     def get_gpu_name(self):
-        device_str = self.gpu_path.replace("\\\\?\\", "")
-        device_str = device_str.split("#{")[0].replace("#", "\\")
-        self.log_apis("当前显卡实例: %s" % device_str)
+        device_str = ""
+        if len(self.gpu_path) > 0:
+            device_str = self.gpu_path.replace("\\\\?\\", "")
+            device_str = device_str.split("#{")[0].replace("#", "\\")
+            self.log_apis("当前显卡实例: %s" % device_str)
         update_cmd = ("Get-CimInstance  -ClassName Win32_PnPEntity "
                       "| ForEach-Object {$_.DeviceID+\"|||\"+$_.Name}")
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis).split("\n")
         self.map_uuid_name = {}
         self.gpu_name = ""
         for i in result_cmd:
-            if len(i) > 0:
-                map_list = i.split("|||")
-                if len(map_list) >= 2:
-                    self.map_uuid_name[map_list[0].lower()] = map_list[1]
-                    if map_list[0].lower().find(device_str.lower()) >= 0:
-                        self.gpu_name = map_list[1]
-                        self.log_apis("当前显卡名称: %s" % self.gpu_name)
-
+            if len(i) <=0:
+                continue
+            map_list = i.split("|||")
+            if len(map_list) < 2:
+                continue
+            self.map_uuid_name[map_list[0].lower()] = map_list[1]
+            if len(self.gpu_path) <= 0:
+                continue
+            if map_list[0].lower().find(device_str.lower()) >= 0:
+                self.gpu_name = map_list[1]
+                self.log_apis("当前显卡名称: %s" % self.gpu_name)
         return True
 
     def get_mem_size(self):
