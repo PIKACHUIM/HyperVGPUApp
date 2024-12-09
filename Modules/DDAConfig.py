@@ -12,15 +12,15 @@ ps1_cmd = {
 class PCIConfig:
     # 初始化数据 =====================================
     def __init__(self, in_logs: Log.log, in_name=""):
-        self.log_apis = in_logs
-        self.vmx_name = in_name
-        self.gpu_path = ""
-        self.gpu_name = ""
-        self.gpu_size = 0
-        self.min_size = 0
-        self.max_size = 0
-        self.map_uuid_name = {}
-        self.dda_path_uuid = {}
+        self.log_apis = in_logs  # 传入的Logs日志对象
+        self.vmx_name = in_name  # 传入当前虚拟机名称
+        self.gpu_path: str = ""  # 分配的显卡设备路径
+        self.gpu_name: str = ""  # 分配的显卡友好名称
+        self.gpu_size: int = 0  # 分配的GPU占主机比例
+        self.min_size: int = 0  # 分配的PCI的最低内存
+        self.max_size: int = 0  # 分配的PCI的最高内存
+        self.map_uuid_name = {}  # 实例编号->设备名称
+        self.dda_path_uuid = {}  # 设备路径->实例编号
 
     # 获取所有数据 ===================================
     def get_all_data(self):
@@ -123,7 +123,7 @@ class PCIConfig:
             dda_name: str = "text_dda_not_name"
             self.dda_path_uuid[dda_path] = dda_uuid
             if dda_uuid in self.map_uuid_name:
-                dda_name= self.map_uuid_name[dda_uuid]
+                dda_name = self.map_uuid_name[dda_uuid]
             self.log_apis("已经直通地址: %s" % dda_path)
             self.log_apis("已经直通名称: %s" % dda_name)
 
