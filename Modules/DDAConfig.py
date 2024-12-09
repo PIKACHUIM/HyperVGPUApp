@@ -1,6 +1,13 @@
 from Modules.LogOutput import Log, LL
 from Modules.PS1Loader import PS1Loader
 
+ps1_cmd = {
+    "get_gpu_path": "Get-VMGpuPartitionAdapter -VMName \"%s\" | ForEach-Object {$_.InstancePath,$_.MinPartitionCompute}",
+    "get_gpu_name": "Get-CimInstance  -ClassName Win32_PnPEntity | ForEach-Object {$_.DeviceID+\"|||\"+$_.Name}",
+    "get_mem_size": "Get-VM -Name \"%s\" | ForEach-Object {$_.LowMemoryMappedIoSpace,$_.HighMemoryMappedIoSpace}",
+    "get_dda_list":"Get-VMAssignableDevice -VMName \"%s\" | ForEach-Object {$_.LocationPath+\"|||\"+$_.InstanceID}"
+}
+
 
 class PCIConfig:
     def __init__(self, in_logs: Log.log, in_name=""):
@@ -15,10 +22,12 @@ class PCIConfig:
         self.dda_path_uuid = {}
 
     def get_all_data(self):
-        self.get_gpu_path()
+        if len(self.vmx_name) > 0:
+            self.get_gpu_path()
         self.get_gpu_name()
-        self.get_mem_size()
-        self.get_pci_list()
+        if len(self.vmx_name) > 0:
+            self.get_mem_size()
+            self.get_dda_list()
 
     def get_gpu_path(self):
         update_cmd = ("Get-VMGpuPartitionAdapter -VMName \"%s\" "
@@ -50,7 +59,7 @@ class PCIConfig:
         self.map_uuid_name = {}
         self.gpu_name = ""
         for i in result_cmd:
-            if len(i) <=0:
+            if len(i) <= 0:
                 continue
             map_list = i.split("|||")
             if len(map_list) < 2:
@@ -76,7 +85,7 @@ class PCIConfig:
         self.log_apis("最高内存映射: %s" % self.max_size)
         return True
 
-    def get_pci_list(self):
+    def get_dda_list(self):
         update_cmd = ("Get-VMAssignableDevice -VMName \"%s\" "
                       "|  ForEach-Object {$_.LocationPath+\"|||\"+$_.InstanceID}" % self.vmx_name)
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis).split("\n")
@@ -90,6 +99,10 @@ class PCIConfig:
                         self.log_apis("已经直通名称: %s" % self.map_uuid_name[map_list[1].lower()])
                     else:
                         print(map_list[1].lower(), self.map_uuid_name)
+
+    @staticmethod
+    def del_dda_list():
+        pass
 
     def add_pci_pass(self, pci_name):
         pass

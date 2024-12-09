@@ -11,8 +11,9 @@ import subprocess
 import ttkbootstrap as ttk
 from ttkbootstrap import *
 
+from Modules.DDADevice import DDAData, DDAType
 from Modules.GPUCreate import GPUCreate
-from Modules.PCIConfig import PCIConfig
+from Modules.DDAConfig import PCIConfig
 from Modules.PS1Loader import PS1Loader
 from Modules.HintEntry import HintEntry
 from Modules.LogOutput import Log, LL
@@ -22,9 +23,8 @@ from UIConfig import UIConfig, Function
 class VGPUTool:
     def __init__(self):
         # 创建窗口 ------------------------------------------------------------
-        self.text = None
-
         self.view = {}
+        self.text = None
         self.root = tk.Tk()
         self.head = ttk.Style()
         self.root.geometry("665x550")
@@ -41,15 +41,20 @@ class VGPUTool:
         self.main = ttk.Notebook(self.root)
         self.page = {i: ttk.Frame(self.root) for i in UIConfig.page}
         self.logs = Log("GPULoader", "", "").log
-        self.pci_last = None  # PCIE设置界面数据存储
-        self.pci_list = {}
+        # DDA 设备 ============================================================
+        self.dda_page = PCIConfig(self.logs, "")  # PCIConfig PCI设置界面的数据
+        self.dda_list = None  # Path->DDAData 当前电脑上所有可以但没有DDA的设备
+        self.dda_last = None  # Path->DDAData 当前所选择的虚拟机已经DDA了的设备
+        # 布置组件 ============================================================
         self.components()
+        self.config_exe()
+        self.config_txt()
+        # 读取数据 ============================================================
         self.update_gpu_list()
         self.update_net_list()
         self.update_vmx_list()
         self.update_dda_list()
-        self.config_exe()
-        self.config_txt()
+        self.update_dda_last()
 
         # self.result_get()
         self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
@@ -187,14 +192,16 @@ class VGPUTool:
 
     # 设置按钮绑定 ################################################################
     def config_exe(self):
-        self.view["gpv_init"]['iso_file']['addon']['open'].config(command=partial(
-            Function.selectFile, self.view["gpv_init"]['iso_file']['entry'], [("ISO File", ".iso")]))
-        self.view["gpv_init"]['vhd_path']['addon']['open'].config(command=partial(
+        t = self.view["gpv_init"]
+        q = [("ISO File", ".iso")]
+        t['gpu_name']['addon']['open'].config(command=self.update_gpu_list)  # 刷新
+        t['gpu_name']['addon']['open'].config(command=self.update_gpu_list)  # 刷新
+        t['bar_deal']['addon']['exec'].config(command=self.submit_gpu_list)  # 提交
+        t['net_name']['addon']['open'].config(command=self.update_net_list)  # 刷新
+        t['iso_file']['addon']['open'].config(command=partial(
+            Function.selectFile, self.view["gpv_init"]['iso_file']['entry'], q))
+        t['vhd_path']['addon']['open'].config(command=partial(
             Function.selectPath, self.view["gpv_init"]['vhd_path']['entry']))
-        self.view["gpv_init"]['gpu_name']['addon']['open'].config(command=self.update_gpu_list)
-        self.view["gpv_conf"]['gpu_name']['addon']['open'].config(command=self.update_gpu_list)
-        self.view["gpv_init"]['bar_deal']['addon']['exec'].config(command=self.submit_gpu_list)
-        self.view["gpv_init"]['net_name']['addon']['open'].config(command=self.update_net_list)
 
     # 设置输入绑定 ################################################################
     def config_txt(self):
@@ -206,9 +213,9 @@ class VGPUTool:
         self.view["gpv_init"]['win_name']['saves'].trace('w', self.config_gpu_load)
         self.view["gpv_init"]['win_pass']['saves'].trace('w', self.config_gpu_load)
         self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_conf"]['vmx_list']['saves'].trace('w', self.update_dda_last)
         self.view["gpv_init"]['aur_boot']['saves'].set(False)
         self.view["gpv_init"]['aur_boot']['entry'].state(['!alternate'])
-        self.view["gpv_conf"]['vmx_list']['saves'].trace('w', self.update_dda_last)
 
     # 检查输入内容 ################################################################
     def config_var_load(self, in_var):
@@ -228,31 +235,30 @@ class VGPUTool:
             check_list.append("win_pass")
         for var_name in check_list:
             check_flag = check_flag and self.config_var_load(var_name)
-        if check_flag:
-            self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.NORMAL)
-        else:
-            self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.DISABLED)
+        self.view["gpv_init"]['bar_deal']['addon']['exec'].config(
+            state=tk.NORMAL if check_flag else tk.DISABLED)
 
     # 更新当前直通设备 ##########################################################################
     def config_dda_last(self):
         counts = 0
         # print(self.pci_list)
-        print(self.pci_last.dda_path_uuid)
-        tree_apis = self.view["gpv_conf"]['currents']['entry']
-        self.view["gpv_conf"]['currents']['entry'].delete(*tree_apis.get_children())
-        pci_name = ""
-        for pci_path in self.pci_last.dda_path_uuid:
-            if len(pci_path) > 0:
-                print(pci_path)
-                if self.pci_last.dda_path_uuid[pci_path] in self.pci_last.map_uuid_name:
-                    pci_name = self.pci_last.map_uuid_name[self.pci_last.dda_path_uuid[pci_path]]
-                counts += 1
-                tree_apis.insert('', counts, values=(
-                    "✔️",
-                    pci_path,
-                    pci_name,
-                    self.i18nString("currents_dda_text"),
-                ))
+        if self.dda_page is not None:
+            print(self.dda_page.dda_path_uuid)
+            tree_apis = self.view["gpv_conf"]['currents']['entry']
+            self.view["gpv_conf"]['currents']['entry'].delete(*tree_apis.get_children())
+            pci_name = ""
+            for pci_path in self.dda_page.dda_path_uuid:
+                if len(pci_path) > 0:
+                    print(pci_path)
+                    if self.dda_page.dda_path_uuid[pci_path] in self.dda_page.map_uuid_name:
+                        pci_name = self.dda_page.map_uuid_name[self.dda_page.dda_path_uuid[pci_path]]
+                    counts += 1
+                    tree_apis.insert('', counts, values=(
+                        "✔️",
+                        pci_path,
+                        pci_name,
+                        self.i18nString("currents_dda_text"),
+                    ))
 
     # 设置当前直通设备 ##########################################################################
     def submit_dda_list(self):
@@ -269,15 +275,14 @@ class VGPUTool:
             self.view["gpv_conf"]['min_size']['entry'].config(state=tk.DISABLED)
             self.view["gpv_conf"]['max_size']['entry'].config(state=tk.DISABLED)
             self.view["gpv_conf"]['gpu_size']['entry'].config(state=tk.DISABLED)
-            # self.view["gpv_conf"]['currents']['entry'].config(state=tk.DISABLED)
             select_vmx = self.view["gpv_conf"]['vmx_list']['saves'].get()
-            self.pci_last = PCIConfig(self.logs, select_vmx)
-            self.pci_last.get_all_data()
+            self.dda_page.vmx_name = select_vmx
+            self.dda_page.get_all_data()
             self.config_dda_last()
-            self.view["gpv_conf"]['gpu_name']['saves'].set(self.pci_last.gpu_name)
-            self.view["gpv_conf"]['gpu_size']['saves'].set(self.pci_last.gpu_size)
-            self.view["gpv_conf"]['min_size']['saves'].set(self.pci_last.min_size)
-            self.view["gpv_conf"]['max_size']['saves'].set(self.pci_last.max_size)
+            self.view["gpv_conf"]['gpu_name']['saves'].set(self.dda_page.gpu_name)
+            self.view["gpv_conf"]['gpu_size']['saves'].set(self.dda_page.gpu_size)
+            self.view["gpv_conf"]['min_size']['saves'].set(self.dda_page.min_size)
+            self.view["gpv_conf"]['max_size']['saves'].set(self.dda_page.max_size)
         finally:
             self.view["gpv_conf"]['gpu_name']['entry'].config(state=tk.NORMAL)
             self.view["gpv_conf"]['min_size']['entry'].config(state=tk.NORMAL)
@@ -330,7 +335,6 @@ class VGPUTool:
         self.view["gpv_conf"]['gpu_name']['entry']['values'] = in_data
         if len(in_data) > 0:
             self.view["gpv_init"]['gpu_name']['entry'].current(0)
-            # self.view["gpv_conf"]['gpu_name']['entry'].current(0)
 
     def update_dda_call(self, in_proc):
         while not in_proc.flag:
@@ -346,34 +350,51 @@ class VGPUTool:
         self.view["gpv_conf"]['pci_deal']['entry']['value'] = 100
         tree = self.view["gpv_conf"]['disabled']['entry']
         self.view["gpv_conf"]['disabled']['entry'].delete(*tree.get_children())
-        result = {}
+        # 处理数据 ============================================================
         counts = 1
-        self.pci_list = {}
+        self.dda_list = {}
         for dev_line in in_proc.data.split("########")[1:]:
+            # 去除头尾的换行符 -----------------------------------
             if dev_line.startswith("\n"):
                 dev_line = dev_line[1:]
             if dev_line.endswith("\n"):
                 dev_line = dev_line[:-1]
             dev_line = dev_line.split("\n")
-            self.logs("获取设备列表: %s" % dev_line, "update_gpu", LL.D)
+            dev_line = [i.replace("\n", "") for i in dev_line]
+            # 解析设备字段 ---------------------------------------
+            self.logs("获取设备列表: %s" % dev_line, "update_gpu")
             if len(dev_line) >= 1:
-                result[dev_line[0]] = {
-                    "name": dev_line[0],
-                    "text": dev_line[1].split(".")[-1] if len(dev_line) >= 2 else "(None)",
-                    "path": dev_line[2] if len(dev_line) >= 3 else "(None)",
-                    "flag": "✔️" if len(dev_line) >= 2 and \
-                                    dev_line[1].find("Assignment can work") >= 0 else "❌"
-                }
-                self.pci_list[result[dev_line[0]]['path']] = result[dev_line[0]]
-                if result[dev_line[0]]["flag"] == "✔️":
+                dda_now = DDAData(
+                    name=dev_line[0],
+                    path="" if len(dev_line) < 3 else dev_line[2],
+                    uuid="",  # 这里获取不到设备实例路径，需要处理
+                    text="" if len(dev_line) < 2 else dev_line[1],
+                )
+                self.dda_list[dda_now.path] = dda_now
+                if dda_now.isFreeDDA():
                     tree.insert('', counts, values=(
-                        result[dev_line[0]]['flag'],
-                        result[dev_line[0]]['path'],
-                        result[dev_line[0]]['name'],
-                        result[dev_line[0]]['text'],
+                        dda_now.updateStr(),
+                        dda_now.path, dda_now.name,
+                        self.i18nString(DDAType.str(dda_now.flag)),
                     ))
+
+                # result[dev_line[0]] = {
+                #     "name": dev_line[0],
+                #     "text": dev_line[1].split(".")[-1] if len(dev_line) >= 2 else "(None)",
+                #     "path": dev_line[2] if len(dev_line) >= 3 else "(None)",
+                #     "flag": "✔️" if len(dev_line) >= 2 and \
+                #                     dev_line[1].find("Assignment can work") >= 0 else "❌"
+                # }
+                # self.pci_list[result[dev_line[0]]['path']] = result[dev_line[0]]
+                # if result[dev_line[0]]["flag"] == "✔️":
+                #     tree.insert('', counts, values=(
+                #         result[dev_line[0]]['flag'],
+                #         result[dev_line[0]]['path'],
+                #         result[dev_line[0]]['name'],
+                #         result[dev_line[0]]['text'],
+                #     ))
                 counts += 1
-        print(self.pci_list)
+        # print(self.pci_list)
         self.config_dda_last()
 
     def update_net_list(self):
@@ -393,29 +414,17 @@ class VGPUTool:
         process = subprocess.run(command, shell=True, text=True, capture_output=True)
         results = Function.splitLists(process.stdout, self.logs, "网卡", prompts)
         self.view["gpv_conf"]['vmx_list']['entry']['values'] = results
-        self.view["gpv_conf"]['vmx_list']['entry'].current(0)
+        if len(self.view["gpv_conf"]['vmx_list']['entry']['values']) > 0:
+            self.view["gpv_conf"]['vmx_list']['entry'].current(0)
         print(results)
 
     def submit_gpu_list(self):
-        var_conf = ('$params = @{\n'
-                    'VMName = "%s"\n'
-                    'SourcePath = "%s"\n'
-                    'Edition    = %d\n'
-                    'VhdFormat  = "%s"\n'
-                    'DiskLayout = "%s"\n'
-                    'SizeBytes  = %s\n'
-                    'MemoryAmount = %s\n'
-                    'CPUCores = %d\n'
-                    'NetworkSwitch = "%s"\n'
-                    'VHDPath = "%s"\n'
+        var_conf = ('$params = @{\nVMName = "%s"\nSourcePath = "%s"\nEdition = %d\n'
+                    'VhdFormat  = "%s"\nDiskLayout = "%s"\nSizeBytes  = %s\n'
+                    'MemoryAmount = %s\nCPUCores = %d\nNetworkSwitch = "%s"\nVHDPath = "%s"\n'
                     'UnattendPath = "$PSScriptRoot"+"\\Scripts\\autounattend.xml"\n'
-                    'GPUName = "%s"\n'
-                    'GPUResourceAllocationPercentage = %d\n'
-                    'Team_ID = "%s"\n'
-                    'Key = "%s"\n'
-                    'Username = "%s"\n'
-                    'Password = "%s"\n'
-                    'Autologon = "%s"\n'
+                    'GPUName = "%s"\nGPUResourceAllocationPercentage = %d\nTeam_ID = "%s"\n'
+                    'Key = "%s"\nUsername = "%s"\nPassword = "%s"\nAutologon = "%s"\n'
                     '}\n\n' % (
                         self.view["gpv_init"]['vmx_name']['saves'].get(),
                         self.view["gpv_init"]['iso_file']['saves'].get(),

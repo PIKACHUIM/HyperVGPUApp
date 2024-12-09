@@ -1,22 +1,22 @@
 $params = @{
-VMName = "a"
-SourcePath = "D:/Vboxs/zh-cn_windows_11_enterprise_ltsc_2024_x64_dvd_cff9cd2d.iso"
+VMName = "TestGPU"
+SourcePath = "G:/VBoxs/Windows10-LITE-22H2-19045.4170-X64-EasyLite-isUpdate-withNet-2024.03.13.iso"
 Edition    = 6
 VhdFormat  = "VHDX"
 DiskLayout = "UEFI"
 SizeBytes  = 32GB
 MemoryAmount = 8GB
 CPUCores = 8
-NetworkSwitch = "Wire Network Switch"
-VHDPath = "D:/Vboxs/Win11-GPU"
+NetworkSwitch = "Default Switch"
+VHDPath = "G:/VBoxs"
 UnattendPath = "$PSScriptRoot"+"\Scripts\autounattend.xml"
-GPUName = "NVIDIA GeForce RTX 3060 Ti"
+GPUName = "NVIDIA GeForce RTX 2060"
 GPUResourceAllocationPercentage = 50
 Team_ID = ""
 Key = ""
 Username = "pika"
 Password = "IM0612"
-Autologon = "false"
+Autologon = "true"
 }
 
 Import-Module $PSSCriptRoot\CopyFile.psm1
