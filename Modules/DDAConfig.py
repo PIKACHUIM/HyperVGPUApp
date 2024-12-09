@@ -118,12 +118,12 @@ class PCIConfig:
             if len(map_list) < 2:
                 continue
             # 读取成功 --------------------------------------------------
-            dda_uuid = map_list[1].lower()
-            dda_path = map_list[0]
-            dda_name = "text_dda_not_name"
+            dda_uuid: str = map_list[1].lower()
+            dda_path: str = map_list[0]
+            dda_name: str = "text_dda_not_name"
             self.dda_path_uuid[dda_path] = dda_uuid
             if dda_uuid in self.map_uuid_name:
-                dda_name = self.map_uuid_name[dda_uuid]
+                dda_name= self.map_uuid_name[dda_uuid]
             self.log_apis("已经直通地址: %s" % dda_path)
             self.log_apis("已经直通名称: %s" % dda_name)
 
