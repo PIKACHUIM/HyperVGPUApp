@@ -52,5 +52,7 @@
   "disabled_pci_path": "设备路径",
   "disabled_pci_name": "设备名称",
   "disabled_pci_text": "状态详情",
-  "currents_dda_text": "已分配此设备到虚拟机"
+  "currents_dda_text": "已分配此设备到虚拟机",
+  "text_dda_not_name": "<未知的设备>",
+  "": "<无>"
 }

@@ -25,11 +25,11 @@ class VGPUTool:
         # 创建窗口 ------------------------------------------------------------
         self.view = {}
         self.text = None
+        self.readConfig()
         self.root = tk.Tk()
         self.head = ttk.Style()
         self.root.geometry("665x550")
         self.area = locale.getdefaultlocale()[0]
-        self.readConfig()
         self.root.title(self.i18nString("app_name"))
         self.root.iconbitmap("Configs/HyperVCreated.ico")
         # 字体设置 ------------------------------------------------------------
@@ -55,10 +55,7 @@ class VGPUTool:
         self.update_vmx_list()
         self.update_dda_list()
         self.update_dda_last()
-
-        # self.result_get()
-        self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
-        self.view["gpv_conf"]['pci_deal']['entry'].start(20)
+        # 完成载入 ============================================================
         self.root.mainloop()
 
     # 读取配置文件 ################################################################
@@ -238,37 +235,30 @@ class VGPUTool:
         self.view["gpv_init"]['bar_deal']['addon']['exec'].config(
             state=tk.NORMAL if check_flag else tk.DISABLED)
 
-    # 更新当前直通设备 ##########################################################################
+    # 更新当前直通设备 ############################################################
     def config_dda_last(self):
         counts = 0
-        # print(self.pci_list)
         if self.dda_page is not None:
-            print(self.dda_page.dda_path_uuid)
+            path_uuid = self.dda_page.dda_path_uuid
+            print(path_uuid)
             tree_apis = self.view["gpv_conf"]['currents']['entry']
-            self.view["gpv_conf"]['currents']['entry'].delete(*tree_apis.get_children())
-            pci_name = ""
-            for pci_path in self.dda_page.dda_path_uuid:
-                if len(pci_path) > 0:
-                    print(pci_path)
-                    if self.dda_page.dda_path_uuid[pci_path] in self.dda_page.map_uuid_name:
-                        pci_name = self.dda_page.map_uuid_name[self.dda_page.dda_path_uuid[pci_path]]
-                    counts += 1
-                    tree_apis.insert('', counts, values=(
-                        "✔️",
-                        pci_path,
-                        pci_name,
-                        self.i18nString("currents_dda_text"),
-                    ))
+            tree_apis.delete(*tree_apis.get_children())
+            pci_name = "text_dda_not_name"
+            for pci_path in path_uuid:
+                if len(pci_path) <= 0:
+                    continue
+                print(pci_path)
+                if path_uuid[pci_path] in self.dda_page.map_uuid_name:
+                    pci_name = self.dda_page.map_uuid_name[path_uuid[pci_path]]
+                counts += 1
+                tree_apis.insert('', counts, values=(
+                    "✔️",
+                    self.i18nString(pci_path),
+                    self.i18nString(pci_name),
+                    self.i18nString("currents_dda_text"),
+                ))
 
-    # 设置当前直通设备 ##########################################################################
-    def submit_dda_list(self):
-        pass
-
-    # 设置虚拟设备管理 ##########################################################################
-    def submit_pci_page(self):
-        pass
-
-    # 获取当前直通设备 ##########################################################################
+    # 获取当前直通设备 ############################################################################
     def update_dda_last(self, *args):
         try:
             self.view["gpv_conf"]['gpu_name']['entry'].config(state=tk.DISABLED)
@@ -290,7 +280,7 @@ class VGPUTool:
             self.view["gpv_conf"]['gpu_size']['entry'].config(state=tk.NORMAL)
             # self.view["gpv_conf"]['currents']['entry'].config(state=tk.NORMAL)
 
-    # 获取当前直虚拟显卡 ##########################################################################
+    # 获取当前PV虚拟显卡 ##########################################################################
     def update_gpu_list(self):
         self.view["gpv_init"]['bar_deal']['saved']['text'].set(self.i18nString('gpu_name_load'))
         self.view["gpv_init"]['gpu_name']['addon']['open'].config(state=tk.DISABLED)
@@ -304,20 +294,7 @@ class VGPUTool:
         update_thread.start()
         loader_thread.start()
 
-    def update_dda_list(self):
-        self.view["gpv_conf"]['pci_deal']['saved']['text'].set(self.i18nString('pci_list_load'))
-        self.view["gpv_conf"]['add_pcie']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['pci_save']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['pci_load']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['del_pcie']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['pci_push']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
-        self.view["gpv_conf"]['pci_deal']['entry'].start(20)
-        update_thread = PS1Loader("CheckDDA.ps1")
-        loader_thread = threading.Thread(target=self.update_dda_call, args=(update_thread,))
-        update_thread.start()
-        loader_thread.start()
-
+    # 获取当前PV虚拟显卡_回调 #####################################################################
     def update_gpu_call(self, in_proc):
         prompts = "update_gpu"
         while not in_proc.flag:
@@ -336,6 +313,22 @@ class VGPUTool:
         if len(in_data) > 0:
             self.view["gpv_init"]['gpu_name']['entry'].current(0)
 
+    # 获取当前可直通设备 ##########################################################################
+    def update_dda_list(self):
+        self.view["gpv_conf"]['pci_deal']['saved']['text'].set(self.i18nString('pci_list_load'))
+        self.view["gpv_conf"]['add_pcie']['entry'].config(state=tk.DISABLED)
+        self.view["gpv_conf"]['pci_save']['entry'].config(state=tk.DISABLED)
+        self.view["gpv_conf"]['pci_load']['entry'].config(state=tk.DISABLED)
+        self.view["gpv_conf"]['del_pcie']['entry'].config(state=tk.DISABLED)
+        self.view["gpv_conf"]['pci_push']['entry'].config(state=tk.DISABLED)
+        self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
+        self.view["gpv_conf"]['pci_deal']['entry'].start(20)
+        update_thread = PS1Loader("CheckDDA.ps1")
+        loader_thread = threading.Thread(target=self.update_dda_call, args=(update_thread,))
+        update_thread.start()
+        loader_thread.start()
+
+    # 获取当前可直通设备_回调 #####################################################################
     def update_dda_call(self, in_proc):
         while not in_proc.flag:
             time.sleep(0.1)
@@ -397,6 +390,7 @@ class VGPUTool:
         # print(self.pci_list)
         self.config_dda_last()
 
+    # 获取当前虚拟交换机 ##########################################################################
     def update_net_list(self):
         prompts = "NetLoader"
         command = 'powershell \"Get-VMSwitch | Select-Object -ExpandProperty Name\"'
@@ -407,6 +401,7 @@ class VGPUTool:
             self.view["gpv_init"]['net_name']['entry']['values'] = results
             self.view["gpv_init"]['net_name']['entry'].current(0)
 
+    # 获取当前虚拟机名称 ##########################################################################
     def update_vmx_list(self):
         prompts = "NetLoader"
         command = 'powershell \"Get-VM | ForEach-Object {$_.Name}\"'
@@ -418,6 +413,7 @@ class VGPUTool:
             self.view["gpv_conf"]['vmx_list']['entry'].current(0)
         print(results)
 
+    # 提交新PV虚拟机创建 ##########################################################################
     def submit_gpu_list(self):
         var_conf = ('$params = @{\nVMName = "%s"\nSourcePath = "%s"\nEdition = %d\n'
                     'VhdFormat  = "%s"\nDiskLayout = "%s"\nSizeBytes  = %s\n'
@@ -457,12 +453,13 @@ class VGPUTool:
                                   self.view["gpv_init"]['bar_deal']['addon']['exec'])
         update_thread.start()
 
-    @staticmethod
-    def processbar(in_apis, in_time: int = 10):
-        in_time *= 10
-        for i in range(0, in_time):
-            in_apis['value'] = 100 / in_time * i
-            time.sleep(0.1)
+    # 设置当前直通设备 ############################################################################
+    def submit_dda_list(self):
+        pass
+
+    # 设置虚拟设备管理 ############################################################################
+    def submit_pci_page(self):
+        pass
 
 
 if __name__ == "__main__":
