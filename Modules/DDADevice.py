@@ -7,7 +7,7 @@ class DDAType(Enum):
     WAIT = DEV_WAIT_DDA = 2  # 可以DDA，等待分配
     DONE = DEV_DONE_DDA = 3  # 可以DDA，已经分配
     KILL = DEV_WAIT_DEL = 4  # 可以DDA，等待取消
-    INIT = DEV_UNKNOWNS = -1
+    INIT = DEV_UNKNOWNS = -1  # 未知的状态，忽略
 
     @staticmethod
     def str(in_data):
