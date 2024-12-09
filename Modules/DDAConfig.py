@@ -98,6 +98,7 @@ class PCIConfig:
         # 读取失败 ------------------------------------------------------
         if len(result_cmd) < 2:
             return False
+        # 读取成功 ------------------------------------------------------
         self.min_size = int(int(result_cmd[0]) / 1024 / 1024)
         self.max_size = int(int(result_cmd[1]) / 1024 / 1024)
         self.log_apis("最低内存映射: %s" % self.min_size)
