@@ -17,7 +17,7 @@ class HintEntry(ttk.Entry):
         # self['fg'] = self.default_fg_color
 
     def foc_in(self, *args):
-        self['show'] = '*'
+        self['show'] = ''
         self.delete('0', 'end')
         # self['fg'] = self.default_fg_color
 

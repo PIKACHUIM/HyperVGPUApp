@@ -170,7 +170,7 @@ class UIConfig:
                 "value": [2, 4, 6, 8,
                           10, 12, 14, 16,
                           18, 20, 24, 32],
-                "index": 2,
+                "index": 3,
                 "saves": ttk.IntVar,
                 "addon": {}
             },
@@ -338,12 +338,12 @@ class UIConfig:
             },
             "pci_type": {
                 "label": False,
-                "entry": HintEntry,
+                "entry": ttk.Checkbutton,
                 "start": None,
                 "lines": 1,
                 "width": 12,
-                "color": "info",
-                "saves": ttk.StringVar,
+                "color": "warning",
+                "saves": ttk.BooleanVar,
                 "addon": {}
             },
             "pci_name": {
@@ -356,7 +356,7 @@ class UIConfig:
                 "saves": ttk.StringVar,
                 "addon": {}
             },
-            "pci_save": {
+            "pci_info": {
                 "entry": ttk.Button,
                 "start": None,
                 "lines": 1,

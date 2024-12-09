@@ -24,7 +24,7 @@ DT = DDAType
 
 class DDAData:
     def __init__(self,
-                 name: str = "text_dda_not_name",
+                 name: str = "DEV_NAME_ERR",
                  path: str = "",
                  uuid: str = "",
                  text: str = "",
@@ -46,7 +46,7 @@ class DDAData:
 
         pass
 
-    def updateStr(self):
+    def getState(self):
         if self.flag.value == 0:
             return "❌"
         elif self.flag.value in (1, 3):

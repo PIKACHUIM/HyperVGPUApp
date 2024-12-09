@@ -1,3 +1,4 @@
+from Modules.DDADevice import DDAData, DT
 from Modules.LogOutput import Log, LL
 from Modules.PS1Loader import PS1Loader
 
@@ -21,6 +22,13 @@ class PCIConfig:
         self.max_size: int = 0  # 分配的PCI的最高内存
         self.map_uuid_name = {}  # 实例编号->设备名称
         self.dda_path_uuid = {}  # 设备路径->实例编号
+
+    def set_vmx_name(self, in_name):
+        self.vmx_name = in_name
+        self.gpu_path = ""
+        self.gpu_size = 0
+        self.min_size = 0
+        self.min_size = 0
 
     # 获取所有数据 ===================================
     def get_all_data(self):
@@ -107,6 +115,7 @@ class PCIConfig:
 
     # 获取DDA分配 =======================================================
     def get_dda_list(self):
+        self.dda_path_uuid = {}
         update_cmd = (ps1_cmd["get_dda_list"] % self.vmx_name)
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis).split("\n")
         for i in result_cmd:
@@ -120,10 +129,18 @@ class PCIConfig:
             # 读取成功 --------------------------------------------------
             dda_uuid: str = map_list[1].lower()
             dda_path: str = map_list[0]
-            dda_name: str = "text_dda_not_name"
-            self.dda_path_uuid[dda_path] = dda_uuid
+            dda_name: str = "DEV_NAME_ERR"
+            # self.dda_path_uuid[dda_path] = dda_uuid
             if dda_uuid in self.map_uuid_name:
                 dda_name = self.map_uuid_name[dda_uuid]
+            dda_data = DDAData(
+                name=dda_name,
+                path=dda_path,
+                uuid=dda_uuid,
+                text="",
+                flag=DT.DEV_DONE_DDA
+            )
+            self.dda_path_uuid[dda_path] = dda_data
             self.log_apis("已经直通地址: %s" % dda_path)
             self.log_apis("已经直通名称: %s" % dda_name)
 
