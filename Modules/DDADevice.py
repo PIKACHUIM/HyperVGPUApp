@@ -24,7 +24,7 @@ DT = DDAType
 
 class DDAData:
     def __init__(self,
-                 name: str = "",
+                 name: str = "text_dda_not_name",
                  path: str = "",
                  uuid: str = "",
                  text: str = "",
