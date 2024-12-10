@@ -30,7 +30,7 @@ class VGPUTool:
         self.readConfig()
         self.root = tk.Tk()
         self.head = ttk.Style()
-        self.root.geometry("665x550")
+        self.root.geometry("665x570")
         self.root.title(self.i18nString("app_name"))
         self.root.iconbitmap("Configs/HyperVCreated.ico")
         # 字体设置 ------------------------------------------------------------
@@ -46,6 +46,7 @@ class VGPUTool:
         self.dda_page = PCIConfig(self.logs, "")  # PCIConfig 设置界面
         self.dda_list = None  # Name->DDAData 当前电脑上所有可以但没有DDA的设备
         self.dda_last = None  # Path->DDAData 当前所选择的虚拟机已经DDA了的设备
+        self.gpu_maps = {}  # GPU Name->GPU UUID映射可用GPU名称到实例路径以分配
         # 布置组件 ============================================================
         self.components()
         self.config_exe()
@@ -186,8 +187,6 @@ class VGPUTool:
         self.main.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
     def load_state(self):
-        self.view["gpv_conf"]['add_pcie']['entry'].config(state=tk.DISABLED)
-
         self.update_vmx_list()
         self.update_gpu_list()
         self.update_net_list()
@@ -310,11 +309,19 @@ class VGPUTool:
         self.view["gpv_init"]['aur_boot']['saves'].set(False)
         self.view["gpv_init"]['aur_boot']['entry'].state(['!alternate'])
         self.view["gpv_conf"]['gpu_name']['saves'].trace('w', self.dev_gpu_changed)
+        self.view["gpv_init"]['gpu_name']['saves'].trace('w', self.dev_gpu_changed)
 
-    def dev_gpu_changed(self):
-        if len(self.view["gpv_conf"]['gpu_name']['saves'].get()) > 0:
-            if self.view["gpv_conf"]['gpu_size']['saves'].get() <= 0:
-                self.view["gpv_conf"]['gpu_size']['saves'].set(50)
+    #
+    def dev_gpu_changed(self, *args):
+        for tab_name in ["gpv_conf", "gpv_init"]:
+            gpu_name = self.view[tab_name]['gpu_name']['saves']
+            gpu_size = self.view[tab_name]['gpu_size']['saves']
+            if gpu_name.get() == self.i18nString("gpu_name_kill"):
+                gpu_size.set(0)
+                gpu_name.set("")
+            if len(gpu_name.get()) > 0:
+                if gpu_size.get() <= 0:
+                    gpu_size.set(50)
 
     # 检查输入内容 ################################################################
     def config_var_load(self, in_var):
@@ -413,9 +420,17 @@ class VGPUTool:
         self.view["gpv_init"]['bar_deal']['entry']['value'] = 100
         self.view["gpv_init"]['bar_deal']['saved']['text'].set("")
         in_data = Function.splitLists(in_proc.data, self.logs, "设备", prompts)
-        self.view["gpv_init"]['gpu_name']['entry']['values'] = in_data
-        self.view["gpv_conf"]['gpu_name']['entry']['values'] = in_data
-        if len(in_data) > 0:
+        in_data = in_data + [self.i18nString("gpu_name_kill")]
+        pv_data = {}
+        for i in in_data:
+            if i.find("|||") > 0:
+                pv_data[i.split("|||")[0]] = i.split("|||")[1]
+            else:
+                pv_data[i] = ""
+        self.gpu_maps = pv_data
+        self.view["gpv_init"]['gpu_name']['entry']['values'] = list(pv_data.keys())
+        self.view["gpv_conf"]['gpu_name']['entry']['values'] = list(pv_data.keys())
+        if len(pv_data) > 0:
             self.view["gpv_init"]['gpu_name']['entry'].current(0)
 
     # 获取当前可直通设备 ##########################################################################
@@ -556,7 +571,19 @@ class VGPUTool:
         self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.DISABLED)
         update_thread = GPUCreate(self.view["gpv_init"]['bar_deal']['entry'],
                                   self.view["gpv_init"]['bar_deal']['addon']['exec'])
+        update_thread.setDaemon(True)
         update_thread.start()
+        loader_thread = threading.Thread(target=self.submit_gpu_call, args=(update_thread,))
+        loader_thread.setDaemon(True)
+        loader_thread.start()
+
+    def submit_gpu_call(self, in_proc):
+        # prompts = "update_gpu"
+        while not in_proc.flag:
+            time.sleep(0.1)
+        messagebox.showinfo(self.i18nString("GPU_NEW_DONE"),in_proc.data['text'])
+        if len(in_proc.data['text'])>0:
+            messagebox.showinfo(self.i18nString("GPU_NEW_FAIL"), in_proc.data['errs'])
 
     # 设置虚拟设备管理 ############################################################################
     def submit_pci_page(self):
@@ -564,22 +591,35 @@ class VGPUTool:
         new_gpu_size = self.view["gpv_conf"]['gpu_size']['saves'].get()
         new_min_size = self.view["gpv_conf"]['min_size']['saves'].get()
         new_max_size = self.view["gpv_conf"]['max_size']['saves'].get()
+        # 重新分配显卡 ============================================================================
         if new_gpu_name != self.dda_page.gpu_name:
-            "Add-VMGpuPartitionAdapterFiles -GPUName $GPUName -DriveLetter $windowsDrive"
-        if new_gpu_size != self.dda_page.gpu_size:
-            pass
+            self.dda_page.del_gpu_name()
+            if len(new_gpu_name) > 0:
+                if new_gpu_name in self.gpu_maps:
+                    self.dda_page.add_gpu_name(self.gpu_maps[new_gpu_name])
+                else:
+                    messagebox.showerror(
+                        self.i18nString("GPU_EXE_FAIL"), self.i18nString("GPU_NOT_FIND"))
+        elif new_gpu_size != self.dda_page.gpu_size:
+            self.dda_page.set_gpu_size()
         if new_min_size != self.dda_page.min_size:
-            pass
+            self.dda_page.set_mem_size(new_min_size, "LowMemoryMappedIoSpace")
         if new_max_size != self.dda_page.max_size:
-            pass
+            self.dda_page.set_mem_size(new_max_size, "HighMemoryMappedIoSpace")
         for dda_path in self.dda_last:
             dda_data = self.dda_last[dda_path]
             if dda_data.flag.value == DT.DEV_WAIT_DEL.value:
-                pass
+                self.dda_page.add_dda_pass(dda_data.path)
         for dda_name in self.dda_list:
             dda_data = self.dda_list[dda_name]
             if dda_data.flag.value == DT.DEV_WAIT_DDA.value:
-                pass
+                self.dda_page.del_dda_pass(dda_data.path)
+
+    def lock_gpu_config(self):
+        pass
+
+    def lock_dda_config(self):
+        pass
 
 
 if __name__ == "__main__":

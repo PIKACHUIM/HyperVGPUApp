@@ -53,7 +53,8 @@ Function Get-VMGpuPartitionAdapterFriendlyName {
     $Devices = (Get-WmiObject -Class "Msvm_PartitionableGpu" -ComputerName $env:COMPUTERNAME -Namespace "ROOT\virtualization\v2").name
     Foreach ($GPU in $Devices) {
         $GPUParse = $GPU.Split('#')[1]
-        Get-WmiObject Win32_PNPSignedDriver | where {($_.HardwareID -eq "PCI\$GPUParse")} | select DeviceName -ExpandProperty DeviceName
+        $GPU_Name = Get-WmiObject Win32_PNPSignedDriver | where {($_.HardwareID -eq "PCI\$GPUParse")} | select DeviceName -ExpandProperty DeviceName
+        Write-Host $GPU_Name"|||"$GPU
         }
 }
 

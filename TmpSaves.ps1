@@ -1,7 +1,7 @@
 $params = @{
 VMName = "TestGPU"
-SourcePath = "G:/VBoxs/Windows10-LITE-22H2-19045.4170-X64-EasyLite-isUpdate-withNet-2024.03.13.iso"
-Edition    = 6
+SourcePath = "G:/VBoxs/zh-cn_windows_11_enterprise_ltsc_2024_x64_dvd_cff9cd2d.iso"
+Edition = 6
 VhdFormat  = "VHDX"
 DiskLayout = "UEFI"
 SizeBytes  = 32GB

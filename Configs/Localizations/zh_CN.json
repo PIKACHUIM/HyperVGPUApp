@@ -21,6 +21,7 @@
   "gpu_name": "分配显卡",
   "gpu_name_open": "刷新",
   "gpu_name_load": "⏳读取中...请稍等",
+  "gpu_name_kill": "<清空所选的显卡>",
   "gpu_size": "显卡最大占用值",
   "par_name": "ParsecID",
   "par_pass": "ParsecToken",
@@ -62,5 +63,10 @@
   "": "<无>",
   "DDA_SHOW_ERR": "错误",
   "DDA_SHOW_DEV": "设备详情",
-  "DDA_CANNOT_T": "此设备无法使用DDA分配"
+  "DDA_CANNOT_T": "此设备无法使用DDA分配",
+  "GPU_EXE_FAIL": "GPU分配失败",
+  "GPU_EXE_DONE": "GPU分配结果",
+  "GPU_NEW_DONE": "GPU虚拟机创建结果",
+  "GPU_NEW_FAIL": "GPU虚拟机创建错误",
+  "GPU_NOT_FIND": "无法找到此CPU对应路径"
 }

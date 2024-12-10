@@ -4,9 +4,10 @@ from Modules.LogOutput import Log, LL
 
 
 class PS1Loader(threading.Thread):
-    def __init__(self, in_file):
+    def __init__(self, in_file, in_type="file"):
         threading.Thread.__init__(self)
         self.file = in_file
+        self.type = in_type
         self.flag = False
         self.data = []
         self.logs = Log(
@@ -16,7 +17,10 @@ class PS1Loader(threading.Thread):
 
     def run(self):
         prompts = "GPULoader"
-        command = 'powershell .\\%s' % self.file
+        if self.type=="file":
+            command = 'powershell .\\%s' % self.file
+        else:
+            command = self.file
         self.logs("执行获取命令: %s" % command, prompts, LL.D)
         process = subprocess.run(command, shell=True, text=True, capture_output=True)
         self.data = process.stdout

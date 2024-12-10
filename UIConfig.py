@@ -274,13 +274,6 @@ class UIConfig:
                 "color": "info",
                 "saves": ttk.StringVar,
                 "addon": {
-                    # "open": {
-                    #     "entry": ttk.Button,
-                    #     "start": None,
-                    #     "width": 7,
-                    #     "lines": 1,
-                    #     "color": "primary",
-                    # }
                 }
             },
             "min_size": {
@@ -323,8 +316,8 @@ class UIConfig:
                 "table": {
                     "dda_flag": 40,
                     "pci_path": 200,
-                    "pci_name": 250,
-                    "pci_text": 110,
+                    "pci_name": 280,
+                    "pci_text": 80,
                 },
                 "addon": {},
             },
@@ -389,8 +382,8 @@ class UIConfig:
                 "table": {
                     "dda_flag": 40,
                     "pci_path": 200,
-                    "pci_name": 250,
-                    "pci_text": 110,
+                    "pci_name": 280,
+                    "pci_text": 80,
                 },
                 "addon": {}
             },
@@ -436,16 +429,6 @@ class UIConfig:
                 "addon": {}
             },
         },
-        # "dda_conf": {
-        #     "not_good": {
-        #         "entry": ttk.Label,
-        #         "start": None,
-        #         "width": None,
-        #         "lines": 1,
-        #         "color": "info",
-        #         "addon": {}
-        #     },
-        # },
         "about_us": {
             "not_good": {
                 "entry": ttk.Label,
