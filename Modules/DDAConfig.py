@@ -1,3 +1,5 @@
+import threading
+
 from Modules.DDADevice import DDAData, DT
 from Modules.LogOutput import Log, LL
 from Modules.PS1Loader import PS1Loader
@@ -17,16 +19,18 @@ ps1_cmd = {
         "Set-VMGpuPartitionAdapter -VMName \"%s\" -MinPartitionDecode ([math]::round($(1000000000 / %d))) -MaxPartitionDecode ([math]::round($(1000000000 / %d))) -OptimalPartitionDecode ([math]::round($(1000000000 / %d)))",
         "Set-VMGpuPartitionAdapter -VMName \"%s\" -MinPartitionCompute ([math]::round($(1000000000 / %d))) -MaxPartitionCompute ([math]::round($(1000000000 / %d))) -OptimalPartitionCompute ([math]::round($(1000000000 / %d)))",
     ],
-    "no_mount_dda": "Dismount-VMHostAssignableDevice -Force -LocationPath \"%s\"",
-    "ok_mount_dda": "Mount-VMHostAssignableDevice -Force -LocationPath \"%s\"",
+    "no_mount_dda": "Dismount-VMHostAssignableDevice -LocationPath \"%s\"",
+    "ok_mount_dda": "Mount-VMHostAssignableDevice -LocationPath \"%s\"",
     "add_dda_name": "Add-VMAssignableDevice -LocationPath \"%s\" -VMName \"%s\"",
     "del_dda_name": "Remove-VMAssignableDevice -LocationPath \"%s\" -VMName \"%s\"",
 }
 
 
-class PCIConfig:
+class PCIConfig(threading.Thread):
     # 初始化数据 =====================================
     def __init__(self, in_logs: Log.log, in_name=""):
+        threading.Thread.__init__(self)
+        self.run_flag = False
         self.log_apis = in_logs  # 传入的Logs日志对象
         self.vmx_name = in_name  # 传入当前虚拟机名称
         self.gpu_path: str = ""  # 分配的显卡设备路径
@@ -44,14 +48,19 @@ class PCIConfig:
         self.min_size = 0
         self.min_size = 0
 
+    def run(self):
+        self.get_all_data()
+
     # 获取所有数据 ===================================
     def get_all_data(self):
+        self.run_flag = True
         if len(self.vmx_name) > 0:
             self.get_gpu_path()
         self.get_gpu_name()
         if len(self.vmx_name) > 0:
             self.get_mem_size()
             self.get_dda_list()
+        self.run_flag = False
 
     # 获取GPU路径 =======================================================
     def get_gpu_path(self):
@@ -170,7 +179,8 @@ class PCIConfig:
 
     def add_gpu_file(self):
         self.log_apis("更新显卡驱动: %s-%s" % (self.vmx_name, self.gpu_name))
-        result_cmd = PS1Loader("UpdateVM.ps1 %s %s" % (self.vmx_name, self.gpu_name))
+        result_cmd = PS1Loader("UpdateVM.ps1 -VMName '%s' -GPUName '%s'" % (
+            self.vmx_name, self.gpu_name))
         result_cmd.setDaemon(True)
         result_cmd.start()
 
@@ -184,28 +194,27 @@ class PCIConfig:
             self.log_apis("修改分配结果: %s" % result_cmd)
 
     def set_mem_size(self, mem_size, var_name):
-        self.log_apis("设置映射内存: %s=%sMB" % var_name, mem_size)
-        update_cmd = (ps1_cmd['set_mem_size'] % (var_name, mem_size, self.vmx_name))
+        self.log_apis("设置映射内存: %s=%sMB" % (var_name, mem_size))
+        update_cmd = (ps1_cmd['set_mem_size'] % (var_name, int(mem_size), self.vmx_name))
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis)
         self.log_apis("设置内存结果: %s" % result_cmd)
 
     def add_dda_pass(self, dda_name):
-        self.log_apis("卸载当前显卡: %s" % dda_name)
+        self.log_apis("卸载当前设备: %s" % dda_name)
         update_cmd = (ps1_cmd['no_mount_dda'] % dda_name)
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis)
-        self.log_apis("卸载当前显卡结果: %s" % result_cmd)
-        self.log_apis("分配当前显卡: %s" % self.vmx_name)
+        self.log_apis("卸载当前设备结果: %s" % result_cmd)
+        self.log_apis("分配当前设备: %s" % self.vmx_name)
         update_cmd = (ps1_cmd['add_dda_name'] % (dda_name, self.vmx_name))
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis)
-        self.log_apis("分配显卡结果: %s" % result_cmd)
+        self.log_apis("分配设备结果: %s" % result_cmd)
 
     def del_dda_pass(self, dda_name):
-        self.log_apis("删除当前显卡: %s" % self.vmx_name)
+        self.log_apis("删除当前设备: %s" % self.vmx_name)
         update_cmd = (ps1_cmd['del_dda_name'] % (dda_name, self.vmx_name))
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis)
-        self.log_apis("删除显卡结果: %s" % result_cmd)
-        self.log_apis("加载当前显卡: %s" % dda_name)
+        self.log_apis("删除设备结果: %s" % result_cmd)
+        self.log_apis("加载当前设备: %s" % dda_name)
         update_cmd = (ps1_cmd['ok_mount_dda'] % dda_name)
         result_cmd = PS1Loader.cmd(update_cmd, self.log_apis)
-        self.log_apis("加载当前显卡结果: %s" % result_cmd)
-
+        self.log_apis("加载当前设备结果: %s" % result_cmd)

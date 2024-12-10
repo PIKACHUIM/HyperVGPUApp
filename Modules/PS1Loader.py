@@ -17,13 +17,14 @@ class PS1Loader(threading.Thread):
 
     def run(self):
         prompts = "GPULoader"
-        if self.type=="file":
+        if self.type == "file":
             command = 'powershell .\\%s' % self.file
         else:
             command = self.file
         self.logs("执行获取命令: %s" % command, prompts, LL.D)
         process = subprocess.run(command, shell=True, text=True, capture_output=True)
         self.data = process.stdout
+        print(process.stderr)
         self.flag = True
 
     @staticmethod

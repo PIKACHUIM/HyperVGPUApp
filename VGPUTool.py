@@ -1,6 +1,8 @@
 import os
 import json
 import time
+import traceback
+import webbrowser
 from functools import partial
 from tkinter import messagebox
 
@@ -24,7 +26,8 @@ from UIConfig import UIConfig, Function
 class VGPUTool:
     def __init__(self):
         # 创建窗口 ------------------------------------------------------------
-        self.view = {}
+        self.view = {}  # 存储组件对象
+        self.grid = {}  # 存储grid数据
         self.text = None
         self.area = ""
         self.readConfig()
@@ -41,12 +44,14 @@ class VGPUTool:
         # 界面配置 ============================================================
         self.main = ttk.Notebook(self.root)
         self.page = {i: ttk.Frame(self.root) for i in UIConfig.page}
-        self.logs = Log("GPULoader", "", "").log
+        self.logs = Log("GPULoader", "").log
         # DDA 设备 ============================================================
         self.dda_page = PCIConfig(self.logs, "")  # PCIConfig 设置界面
+        # self.dda_page = None  # PCIConfig 设置界面
         self.dda_list = None  # Name->DDAData 当前电脑上所有可以但没有DDA的设备
         self.dda_last = None  # Path->DDAData 当前所选择的虚拟机已经DDA了的设备
         self.gpu_maps = {}  # GPU Name->GPU UUID映射可用GPU名称到实例路径以分配
+        self.tmp_view = {}  # 临时存放
         # 布置组件 ============================================================
         self.components()
         self.config_exe()
@@ -70,9 +75,11 @@ class VGPUTool:
     # 获取本地翻译 ################################################################
     def i18nString(self, in_name):
         if in_name in self.text:
-            return self.text[in_name]
-        else:
-            return in_name
+            result = self.text[in_name]
+            if type(result) is list:
+                return "".join(result)
+            return result
+        return in_name
 
     # 设置页面组件 ################################################################
     def components(self):
@@ -80,71 +87,66 @@ class VGPUTool:
         for tab_name in self.page:
             # 添加组件 ------------------------------------------------------------
             self.view[tab_name] = {}
+            self.grid[tab_name] = {}
             tab_apis = self.page[tab_name]
             com_list = UIConfig.page[tab_name]
             com_line = com_cols = 0
             # 特殊筛选 ------------------------------------------------------------
             lab = (ttk.Entry, ttk.Combobox)
             wid = (ttk.Entry, ttk.Combobox, ttk.Button, ttk.Label, HintEntry)
-            # llm = ttk.Progressbar
-            # lst = ttk.Combobox
             txt = (ttk.Label, ttk.Checkbutton, ttk.Button)
             var = (ttk.Entry, ttk.Label, ttk.Combobox, HintEntry)
             # 遍历组件 ------------------------------------------------------------
             for com_name in com_list:
+                self.grid[tab_name][com_name] = {}
                 com_data: dict = com_list[com_name]
                 if "loads" in com_data:
                     com_data: dict = UIConfig.page[com_data["loads"]][com_name]
                 add_data: dict = com_data['addon']
                 com_objs = com_data['entry']  # 组件类型对象
-                tmp_data = None
                 # 新UI组件 =====================================================================================
-                if com_name not in self.view[tab_name]:
-                    # add_data: dict = com_data['addon']
-                    # com_objs = com_data['entry']  # 组件类型对象
-                    var_save = com_data['saves']() if 'saves' in com_data else None
-                    var_adds = {
-                        add_name: add_data[add_name]['saves']() \
-                            if 'saves' in add_data[add_name] else None
+                var_save = com_data['saves']() if 'saves' in com_data else None
+                var_adds = {
+                    add_name: add_data[add_name]['saves']() \
+                        if 'saves' in add_data[add_name] else None
+                    for add_name in add_data
+                }
+                # 新UI组件 =====================================================================================
+                tmp_data = {
+                    # 引导标题 =============================================================================
+                    "label": ttk.Label(
+                        tab_apis, bootstyle=com_data['color'], text=self.i18nString(com_name) + ": ") \
+                        if com_objs in lab and ("label" not in com_data or com_data["label"]) else None,
+                    # 核心组件 =============================================================================
+                    "saves": var_save,
+                    "entry": com_data["entry"](
+                        tab_apis, bootstyle=com_data['color'] or "info",
+                        # command=com_data['start'] if 'start' in com_data and com_objs in com else None,
+                        width=com_data['width'] if 'width' in com_data and com_objs in wid else None,
+                        length=com_data['width'] if 'width' in com_data and com_objs == ttk.Progressbar else None,
+                        values=com_data['value'] if 'value' in com_data and com_objs == ttk.Combobox else None,
+                        text=self.i18nString(com_name) if com_objs in txt else None,
+                        textvariable=var_save if com_objs in var else None,
+                        variable=var_save if com_objs is ttk.Checkbutton else None,
+                        height=com_data['highs'] if 'highs' in com_data and com_objs == ttk.Treeview else None,
+                        hint=self.i18nString(com_name) if com_objs == HintEntry else None,
+                        anchor="center" if tab_name == "about_us" and com_objs == ttk.Label else None
+                    ),
+                    # 附件组件 =============================================================================
+                    "saved": var_adds,
+                    "addon": {
+                        add_name: add_data[add_name]['entry'](
+                            tab_apis, bootstyle=add_data[add_name]['color'],
+                            text=self.i18nString(com_name + "_" + add_name),
+                            width=add_data[add_name]['width'] if 'width' in add_data[add_name] else None,
+                            textvariable=var_adds[add_name] if add_name in add_data else None,
+                            # command=add_data[add_name]['start'] if 'start' in add_data[add_name] else None,
+                            height=com_data['highs'] if 'highs' in com_data and com_objs == ttk.Treeview else None,
+                        )
                         for add_name in add_data
                     }
-                    tmp_data = {
-                        # 引导标题 =============================================================================
-                        "label": ttk.Label(
-                            tab_apis, bootstyle=com_data['color'], text=self.i18nString(com_name) + ": ") \
-                            if com_objs in lab and ("label" not in com_data or com_data["label"]) else None,
-                        # 核心组件 =============================================================================
-                        "saves": var_save,
-                        "entry": com_data["entry"](
-                            tab_apis, bootstyle=com_data['color'] or "info",
-                            # command=com_data['start'] if 'start' in com_data and com_objs in com else None,
-                            width=com_data['width'] if 'width' in com_data and com_objs in wid else None,
-                            length=com_data['width'] if 'width' in com_data and com_objs == ttk.Progressbar else None,
-                            values=com_data['value'] if 'value' in com_data and com_objs == ttk.Combobox else None,
-                            text=self.i18nString(com_name) if com_objs in txt else None,
-                            textvariable=var_save if com_objs in var else None,
-                            variable=var_save if com_objs is ttk.Checkbutton else None,
-                            height=com_data['highs'] if 'highs' in com_data and com_objs == ttk.Treeview else None,
-                            hint=self.i18nString(com_name) if com_objs == HintEntry else None
-                        ),
-                        # 附件组件 =============================================================================
-                        "saved": var_adds,
-                        "addon": {
-                            add_name: add_data[add_name]['entry'](
-                                tab_apis, bootstyle=add_data[add_name]['color'],
-                                text=self.i18nString(com_name + "_" + add_name),
-                                width=add_data[add_name]['width'] if 'width' in add_data[add_name] else None,
-                                textvariable=var_adds[add_name] if add_name in add_data else None,
-                                # command=add_data[add_name]['start'] if 'start' in add_data[add_name] else None,
-                                height=com_data['highs'] if 'highs' in com_data and com_objs == ttk.Treeview else None,
-                            )
-                            for add_name in add_data
-                        },
-                        "units": com_data  # 多个组件复用的时候，存储data去重以便后面grid进行调用
-                    }
-                    self.view[tab_name][com_name] = tmp_data
-                else:
-                    print("跳过组件添加: %s-%s" % (tab_name, com_name))
+                }
+                self.view[tab_name][com_name] = tmp_data
                 # 设置列表 =======================================================================================
                 if type(com_objs) == type(ttk.Combobox):
                     if 'index' in com_data and 'value' in com_data:
@@ -166,18 +168,28 @@ class VGPUTool:
                         count += 1
                         tmp_data["entry"].heading(
                             set_name, text=self.i18nString(com_name + "_" + set_name), anchor='center')
-                # 放置组件 =======================================================================================
+                # 放置核心组件 =========================================================================
                 if tmp_data["label"] is not None:
                     com_cols += 1
                     tmp_data["label"].grid(padx=10, row=com_line, column=com_cols)
+                    self.grid[tab_name][com_name]["label"] = (com_line, com_cols)
                 tmp_data["entry"].grid(pady=10, row=com_line, column=com_cols + 1,
-                                       columnspan=com_data['lines'], padx=10, sticky=W)
+                                       columnspan=com_data['lines'], padx=10,
+                                       sticky=NSEW if tab_name == "about_us" else W)
+                self.grid[tab_name][com_name]["entry"] = (com_line, com_cols + 1, com_data['lines'])
+                self.grid[tab_name][com_name]["addon"] = {}
+                # 放置附属组件 =========================================================================
                 for add_name in tmp_data['addon']:
                     now_data = tmp_data['addon'][add_name]
-                    now_data.grid(column=com_cols + 1 + com_data['lines'],
-                                  row=com_line, padx=10, pady=10, sticky=W,
-                                  columnspan=add_data[add_name]['lines'], )
+                    now_data.grid(column=com_cols + 1 + com_data['lines'], row=com_line,
+                                  padx=10, pady=10, sticky=W, columnspan=add_data[add_name]['lines'])
+                    self.grid[tab_name][com_name]["addon"][add_name] = (
+                        com_line,
+                        com_cols + 1 + com_data['lines'],
+                        add_data[add_name]['lines']
+                    )
                     com_cols += add_data[add_name]['lines']
+                # 计算行位置 ===========================================================================
                 com_cols += com_data['lines']
                 if com_cols >= UIConfig.line:
                     com_cols = 0
@@ -186,15 +198,17 @@ class VGPUTool:
             self.main.add(tab_apis, text=self.i18nString(tab_name))
         self.main.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-    def load_state(self):
+    # 更新按钮绑定 ################################################################
+    def load_state(self, all_flag=False):
+        self.lock_vmx_update(True)
         self.update_vmx_list()
         self.update_gpu_list()
         self.update_net_list()
-        self.load_pci_t()
-
-    def load_pci_t(self):
         self.update_dda_list()
-        self.update_dda_last()
+
+    @staticmethod
+    def url_github(url=""):
+        webbrowser.open(url)
 
     # 设置按钮绑定 ################################################################
     def config_exe(self):
@@ -213,10 +227,15 @@ class VGPUTool:
         c['pci_exit']['entry'].config(command=self.load_state)
         c['add_pcie']['entry'].config(command=partial(self.set_device, True))
         c['del_pcie']['entry'].config(command=partial(self.set_device, False))
-        c['pci_load']['entry'].config(command=self.load_pci_t)
+        c['pci_load']['entry'].config(command=self.update_dda_list)
         c['pci_push']['entry'].config(command=self.submit_pci_page)
         c['pci_info']['entry'].config(command=self.get_details)
-
+        self.view["about_us"]['git_page']['entry'].config(command=partial(
+            VGPUTool.url_github,'https://github.com/PIKACHUIM/HyperVGPUApp'
+        ))
+        self.view["about_us"]['git_back']['entry'].config(command=partial(
+            VGPUTool.url_github, 'https://github.com/PIKACHUIM/HyperVGPUApp/issues'
+        ))
         self.view["gpv_conf"]['currents']['entry'].bind('<<TreeviewSelect>>', partial(
             self.set_button,
             self.view["gpv_conf"]['del_pcie']['entry'],
@@ -227,6 +246,24 @@ class VGPUTool:
             self.view["gpv_conf"]['add_pcie']['entry'],
             self.view["gpv_conf"]['disabled']['entry']
         ))
+
+    # 设置输入绑定 ################################################################
+    def config_txt(self):
+        self.view["gpv_init"]['vmx_name']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['iso_file']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['vhd_path']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['gpu_name']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['win_name']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['win_pass']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.config_gpu_load)
+        self.view["gpv_conf"]['vmx_list']['saves'].trace('w', self.update_dda_last)
+        self.view["gpv_conf"]['pci_type']['saves'].trace('w', self.config_dda_list)
+        self.view["gpv_conf"]['pci_name']['saves'].trace('w', self.config_dda_list)
+        self.view["gpv_conf"]['gpu_name']['saves'].trace('w', self.dev_gpu_changed)
+        self.view["gpv_init"]['gpu_name']['saves'].trace('w', self.dev_gpu_changed)
+        self.view["gpv_init"]['aur_boot']['saves'].set(False)
+        self.view["gpv_init"]['aur_boot']['entry'].state(['!alternate'])
 
     def get_details(self, *args):
         dda_name = self.get_select(self.view["gpv_conf"]['disabled']['entry'])[2]
@@ -293,34 +330,18 @@ class VGPUTool:
             push.config(state=tk.DISABLED)
         print(selected)
 
-    # 设置输入绑定 ################################################################
-    def config_txt(self):
-        self.view["gpv_init"]['vmx_name']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_init"]['iso_file']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_init"]['vhd_path']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_init"]['gpu_name']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_init"]['win_name']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_init"]['win_pass']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_init"]['aur_boot']['saves'].trace('w', self.config_gpu_load)
-        self.view["gpv_conf"]['vmx_list']['saves'].trace('w', self.update_dda_last)
-        self.view["gpv_conf"]['pci_type']['saves'].trace('w', self.config_dda_list)
-        self.view["gpv_conf"]['pci_name']['saves'].trace('w', self.config_dda_list)
-        self.view["gpv_init"]['aur_boot']['saves'].set(False)
-        self.view["gpv_init"]['aur_boot']['entry'].state(['!alternate'])
-        self.view["gpv_conf"]['gpu_name']['saves'].trace('w', self.dev_gpu_changed)
-        self.view["gpv_init"]['gpu_name']['saves'].trace('w', self.dev_gpu_changed)
-
     #
     def dev_gpu_changed(self, *args):
         for tab_name in ["gpv_conf", "gpv_init"]:
             gpu_name = self.view[tab_name]['gpu_name']['saves']
             gpu_size = self.view[tab_name]['gpu_size']['saves']
             if gpu_name.get() == self.i18nString("gpu_name_kill"):
-                gpu_size.set(0)
+                gpu_size.set("")
                 gpu_name.set("")
             if len(gpu_name.get()) > 0:
-                if gpu_size.get() <= 0:
+                if type(gpu_size) is str and len(gpu_size.get()) <= 0:
+                    gpu_size.set(50)
+                if type(gpu_size) is int and gpu_size.get() <= 0:
                     gpu_size.set(50)
 
     # 检查输入内容 ################################################################
@@ -352,7 +373,6 @@ class VGPUTool:
             self.dda_last = self.dda_page.dda_path_uuid
             tree_apis = self.view["gpv_conf"]['currents']['entry']
             tree_apis.delete(*tree_apis.get_children())
-            # pci_name = "DEV_NAME_ERR"
             for dda_path in self.dda_last:
                 if len(dda_path) <= 0:
                     continue
@@ -365,45 +385,103 @@ class VGPUTool:
                     self.i18nString(DDAType.str(dda_data.flag)),
                 ))
 
+    def lock_net_update(self, flag):
+        blocks = ['net_name']
+        self.lock_ui_element(flag, 'gpv_init', blocks)
+
+    def lock_gpu_update(self, flag):
+        blocks = ['gpu_name', 'gpu_size', 'bar_deal']
+        self.lock_ui_element(flag, 'gpv_init', blocks)
+        self.lock_ui_element(flag, 'gpv_conf', blocks[:2])
+
+    def lock_dda_update(self, flag):
+        blocks = ['pci_type', 'pci_name', 'pci_info',
+                  'add_pcie', 'pci_push', 'disabled',
+                  'pci_load', 'del_pcie', 'pci_deal']
+        self.lock_ui_element(flag, 'gpv_conf', blocks)
+
+    def lock_vmx_update(self, flag):
+        blocks = ['gpu_name', 'gpu_size', 'min_size',
+                  'max_size', 'currents', 'del_pcie', 'pci_deal']
+        self.lock_ui_element(flag, 'gpv_conf', blocks)
+
+    def lock_ui_element(self, flag: bool, tab_name: str, com_list: list):
+        status = tk.DISABLED if flag else tk.NORMAL
+        for com_name in com_list:
+            all_data = [self.view[tab_name][com_name]['entry']]
+            for sub_data in self.view[tab_name][com_name]['addon']:
+                all_data.append(self.view[tab_name][com_name]['addon'][sub_data])
+            for now_data in all_data:
+                try:
+                    if type(now_data) in (ttk.Entry, ttk.Combobox):
+                        now_data.delete(0, END)
+                        if flag:
+                            now_data.insert(0, self.i18nString("app_load"))
+                    if type(now_data) in (ttk.Entry, ttk.Combobox, ttk.Button, ttk.Checkbutton):
+                        now_data.config(state=status)
+                    if type(now_data) in (ttk.Progressbar,):
+                        now_data['mode'] = 'indeterminate' if flag else "determinate"
+                        if flag:
+                            now_data.start(20)
+                        else:
+                            now_data.stop()
+                            now_data['value'] = 100
+                    if type(now_data) in (ttk.Label, ttk.Frame):
+                        now_data['textvariable'] = self.i18nString('app_load')
+                    if type(now_data) == ttk.Treeview:
+                        if tab_name not in self.tmp_view:
+                            self.tmp_view[tab_name] = {}
+                        if flag:
+                            if com_name in self.tmp_view[tab_name]:
+                                continue
+                            print(tab_name, com_name, flag)
+                            tmp_grid = self.grid[tab_name][com_name]['entry']
+                            tmp_text = ttk.Label(self.page[tab_name], text=self.i18nString("txt_load"))
+                            tmp_text.grid(pady=10, row=tmp_grid[0], column=tmp_grid[1] + 2,
+                                          columnspan=tmp_grid[2], padx=10, sticky=W)
+                            self.tmp_view[tab_name][com_name] = tmp_text
+                        elif com_name in self.tmp_view[tab_name]:
+                            print(tab_name, com_name, flag)
+                            self.tmp_view[tab_name][com_name].grid_forget()
+                            self.tmp_view[tab_name].pop(com_name)
+
+                except (RuntimeError, Exception) as err:
+                    self.logs("设置遇到错误: %s" % str(err), "", LL.W_)
+                    self.logs("设置遇到错误: %s %s" % (tab_name, com_name), "", LL.D_)
+                    traceback.print_exc()
+
     # 获取当前直通设备 ############################################################################
     def update_dda_last(self, *args):
-        try:
-            self.view["gpv_conf"]['gpu_name']['entry'].config(state=tk.DISABLED)
-            self.view["gpv_conf"]['min_size']['entry'].config(state=tk.DISABLED)
-            self.view["gpv_conf"]['max_size']['entry'].config(state=tk.DISABLED)
-            self.view["gpv_conf"]['gpu_size']['entry'].config(state=tk.DISABLED)
-            select_vmx = self.view["gpv_conf"]['vmx_list']['saves'].get()
-            # self.dda_page.vmx_name = select_vmx
-            self.dda_page.set_vmx_name(select_vmx)
-            self.dda_page.get_all_data()
-            self.config_dda_last()
-            self.view["gpv_conf"]['gpu_name']['saves'].set(self.dda_page.gpu_name)
-            self.view["gpv_conf"]['gpu_size']['saves'].set(self.dda_page.gpu_size)
-            self.view["gpv_conf"]['min_size']['saves'].set(self.dda_page.min_size)
-            self.view["gpv_conf"]['max_size']['saves'].set(self.dda_page.max_size)
-        finally:
-            self.view["gpv_conf"]['gpu_name']['entry'].config(state=tk.NORMAL)
-            self.view["gpv_conf"]['min_size']['entry'].config(state=tk.NORMAL)
-            self.view["gpv_conf"]['max_size']['entry'].config(state=tk.NORMAL)
-            self.view["gpv_conf"]['gpu_size']['entry'].config(state=tk.NORMAL)
+        select_vmx = self.view["gpv_conf"]['vmx_list']['saves'].get()
+        self.lock_vmx_update(True)
+        if self.dda_page is not None:
+            self.dda_page = PCIConfig(self.logs, select_vmx)
+        # self.dda_page.set_vmx_name(select_vmx)
+        self.dda_page.start()
+        # self.dda_page.get_all_data()
+        loader_thread = threading.Thread(target=self.update_dda_back, args=())
+        loader_thread.daemon = True
+        loader_thread.start()
 
-            # self.load_pci_t()
-            # self.view["gpv_conf"]['currents']['entry'].config(state=tk.NORMAL)
+    def update_dda_back(self, *args):
+        while self.dda_page.run_flag:
+            time.sleep(0.1)
+        self.lock_vmx_update(False)
+        self.view["gpv_conf"]['gpu_name']['saves'].set(self.dda_page.gpu_name)
+        self.view["gpv_conf"]['gpu_size']['saves'].set(self.dda_page.gpu_size)
+        self.view["gpv_conf"]['min_size']['saves'].set(self.dda_page.min_size)
+        self.view["gpv_conf"]['max_size']['saves'].set(self.dda_page.max_size)
+        # self.view["gpv_conf"]['vmx_list']['saves'].set(self.dda_page.vmx_name)
+        self.config_dda_last()
 
     # 获取当前PV虚拟显卡 ##########################################################################
     def update_gpu_list(self):
-        self.view["gpv_init"]['bar_deal']['saved']['text'].set(self.i18nString('gpu_name_load'))
-        self.view["gpv_init"]['gpu_name']['addon']['open'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['gpu_name']['addon']['open'].config(state=tk.DISABLED)
-        self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.DISABLED)
-        self.view["gpv_init"]['gpu_name']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_init"]['bar_deal']['entry']['mode'] = 'indeterminate'
-        self.view["gpv_init"]['bar_deal']['entry'].start(20)
+        self.lock_gpu_update(True)
         update_thread = PS1Loader("PreCheck.ps1")
-        update_thread.setDaemon(True)
+        update_thread.daemon = True
         update_thread.start()
         loader_thread = threading.Thread(target=self.update_gpu_call, args=(update_thread,))
-        loader_thread.setDaemon(True)
+        loader_thread.daemon = True
         loader_thread.start()
 
     # 获取当前PV虚拟显卡_回调 #####################################################################
@@ -411,13 +489,8 @@ class VGPUTool:
         prompts = "update_gpu"
         while not in_proc.flag:
             time.sleep(0.1)
-        self.view["gpv_init"]['gpu_name']['addon']['open'].config(state=tk.NORMAL)
-        self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.NORMAL)
-        self.view["gpv_conf"]['gpu_name']['addon']['open'].config(state=tk.NORMAL)
-        self.view["gpv_init"]['gpu_name']['entry'].config(state=tk.NORMAL)
-        self.view["gpv_init"]['bar_deal']['entry']['mode'] = 'determinate'
-        self.view["gpv_init"]['bar_deal']['entry'].stop()
-        self.view["gpv_init"]['bar_deal']['entry']['value'] = 100
+        self.lock_gpu_update(False)
+
         self.view["gpv_init"]['bar_deal']['saved']['text'].set("")
         in_data = Function.splitLists(in_proc.data, self.logs, "设备", prompts)
         in_data = in_data + [self.i18nString("gpu_name_kill")]
@@ -429,25 +502,21 @@ class VGPUTool:
                 pv_data[i] = ""
         self.gpu_maps = pv_data
         self.view["gpv_init"]['gpu_name']['entry']['values'] = list(pv_data.keys())
+        tmp_var = self.view["gpv_conf"]['gpu_name']['saves'].get()
         self.view["gpv_conf"]['gpu_name']['entry']['values'] = list(pv_data.keys())
+        self.view["gpv_conf"]['gpu_name']['saves'].set(tmp_var)
         if len(pv_data) > 0:
             self.view["gpv_init"]['gpu_name']['entry'].current(0)
 
     # 获取当前可直通设备 ##########################################################################
     def update_dda_list(self):
         self.view["gpv_conf"]['pci_deal']['saved']['text'].set(self.i18nString('pci_list_load'))
-        self.view["gpv_conf"]['pci_info']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['pci_load']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['del_pcie']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['add_pcie']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['pci_push']['entry'].config(state=tk.DISABLED)
-        self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'indeterminate'
-        self.view["gpv_conf"]['pci_deal']['entry'].start(20)
+        self.lock_dda_update(True)
         update_thread = PS1Loader("CheckDDA.ps1")
-        update_thread.setDaemon(True)
+        update_thread.daemon = True
         update_thread.start()
         loader_thread = threading.Thread(target=self.update_dda_call, args=(update_thread,))
-        loader_thread.setDaemon(True)
+        loader_thread.daemon = True
         loader_thread.start()
 
     def config_dda_list(self, *args):
@@ -477,15 +546,7 @@ class VGPUTool:
     def update_dda_call(self, in_proc):
         while not in_proc.flag:
             time.sleep(0.1)
-        self.view["gpv_conf"]['pci_deal']['saved']['text'].set("")
-        self.view["gpv_conf"]['pci_info']['entry'].config(state=tk.NORMAL)
-        self.view["gpv_conf"]['pci_load']['entry'].config(state=tk.NORMAL)
-        self.view["gpv_conf"]['del_pcie']['entry'].config(state=tk.NORMAL)
-        self.view["gpv_conf"]['add_pcie']['entry'].config(state=tk.NORMAL)
-        self.view["gpv_conf"]['pci_push']['entry'].config(state=tk.NORMAL)
-        self.view["gpv_conf"]['pci_deal']['entry']['mode'] = 'determinate'
-        self.view["gpv_conf"]['pci_deal']['entry'].stop()
-        self.view["gpv_conf"]['pci_deal']['entry']['value'] = 100
+        self.lock_dda_update(False)
         # 处理数据 ============================================================
         # counts = 1
         self.dda_list = {}
@@ -512,26 +573,42 @@ class VGPUTool:
 
     # 获取当前虚拟交换机 ##########################################################################
     def update_net_list(self):
-        prompts = "NetLoader"
+        self.lock_net_update(True)
         command = 'powershell \"Get-VMSwitch | Select-Object -ExpandProperty Name\"'
-        self.logs("获取网卡命令: %s" % command, prompts, LL.D)
-        process = subprocess.run(command, shell=True, text=True, capture_output=True)
-        results = Function.splitLists(process.stdout, self.logs, "网卡", prompts)
+        update_thread = PS1Loader(command, in_type="cmds")
+        update_thread.daemon = True
+        update_thread.start()
+        loader_thread = threading.Thread(target=self.update_net_call, args=(update_thread,))
+        loader_thread.daemon = True
+        loader_thread.start()
+
+    def update_net_call(self, in_proc):
+        while not in_proc.flag:
+            time.sleep(0.1)
+        self.lock_net_update(False)
+        results = Function.splitLists(in_proc.data, self.logs, "网卡")
         if len(results) > 0:
             self.view["gpv_init"]['net_name']['entry']['values'] = results
             self.view["gpv_init"]['net_name']['entry'].current(0)
 
     # 获取当前虚拟机名称 ##########################################################################
     def update_vmx_list(self):
-        prompts = "NetLoader"
         command = 'powershell \"Get-VM | ForEach-Object {$_.Name}\"'
-        self.logs("获取虚拟机器: %s" % command, prompts, LL.D)
-        process = subprocess.run(command, shell=True, text=True, capture_output=True)
-        results = Function.splitLists(process.stdout, self.logs, "网卡", prompts)
+        update_thread = PS1Loader(command, in_type="cmds")
+        update_thread.daemon = True
+        update_thread.start()
+        loader_thread = threading.Thread(target=self.update_vmx_call, args=(update_thread,))
+        loader_thread.daemon = True
+        loader_thread.start()
+
+    def update_vmx_call(self, in_proc):
+        while not in_proc.flag:
+            time.sleep(0.1)
+        self.lock_net_update(False)
+        results = Function.splitLists(in_proc.data, self.logs, "机器")
         self.view["gpv_conf"]['vmx_list']['entry']['values'] = results
         if len(self.view["gpv_conf"]['vmx_list']['entry']['values']) > 0:
             self.view["gpv_conf"]['vmx_list']['entry'].current(0)
-        print(results)
 
     # 提交新PV虚拟机创建 ##########################################################################
     def submit_gpu_list(self):
@@ -571,18 +648,17 @@ class VGPUTool:
         self.view["gpv_init"]['bar_deal']['addon']['exec'].config(state=tk.DISABLED)
         update_thread = GPUCreate(self.view["gpv_init"]['bar_deal']['entry'],
                                   self.view["gpv_init"]['bar_deal']['addon']['exec'])
-        update_thread.setDaemon(True)
+        update_thread.daemon = True
         update_thread.start()
         loader_thread = threading.Thread(target=self.submit_gpu_call, args=(update_thread,))
-        loader_thread.setDaemon(True)
+        loader_thread.daemon = True
         loader_thread.start()
 
     def submit_gpu_call(self, in_proc):
-        # prompts = "update_gpu"
         while not in_proc.flag:
             time.sleep(0.1)
-        messagebox.showinfo(self.i18nString("GPU_NEW_DONE"),in_proc.data['text'])
-        if len(in_proc.data['text'])>0:
+        messagebox.showinfo(self.i18nString("GPU_NEW_DONE"), in_proc.data['text'])
+        if len(in_proc.data['text']) > 0:
             messagebox.showinfo(self.i18nString("GPU_NEW_FAIL"), in_proc.data['errs'])
 
     # 设置虚拟设备管理 ############################################################################
@@ -594,6 +670,7 @@ class VGPUTool:
         # 重新分配显卡 ============================================================================
         if new_gpu_name != self.dda_page.gpu_name:
             self.dda_page.del_gpu_name()
+            self.dda_page.gpu_name = new_gpu_name
             if len(new_gpu_name) > 0:
                 if new_gpu_name in self.gpu_maps:
                     self.dda_page.add_gpu_name(self.gpu_maps[new_gpu_name])
@@ -601,7 +678,7 @@ class VGPUTool:
                     messagebox.showerror(
                         self.i18nString("GPU_EXE_FAIL"), self.i18nString("GPU_NOT_FIND"))
         elif new_gpu_size != self.dda_page.gpu_size:
-            self.dda_page.set_gpu_size()
+            self.dda_page.set_gpu_size(new_gpu_size)
         if new_min_size != self.dda_page.min_size:
             self.dda_page.set_mem_size(new_min_size, "LowMemoryMappedIoSpace")
         if new_max_size != self.dda_page.max_size:
@@ -614,12 +691,6 @@ class VGPUTool:
             dda_data = self.dda_list[dda_name]
             if dda_data.flag.value == DT.DEV_WAIT_DDA.value:
                 self.dda_page.del_dda_pass(dda_data.path)
-
-    def lock_gpu_config(self):
-        pass
-
-    def lock_dda_config(self):
-        pass
 
 
 if __name__ == "__main__":

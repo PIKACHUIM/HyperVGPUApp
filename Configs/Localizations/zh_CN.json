@@ -3,6 +3,8 @@
   "gpv_init": "⚒️ 创建GPU-PV虚拟机",
   "gpv_conf": "🔧 管理虚拟PCIE配置",
   "dda_conf": "🔗 DDA 离散设备分配",
+  "app_load": "⏳读取中...",
+  "txt_load": "⏳读取中...请耐心等待几分钟...",
   "about_us": "ℹ️ 关于",
   "vmx_name": "虚拟机名",
   "aur_boot": "开机自启",
@@ -20,7 +22,6 @@
   "cpu_size": "分配的CPU 数量",
   "gpu_name": "分配显卡",
   "gpu_name_open": "刷新",
-  "gpu_name_load": "⏳读取中...请稍等",
   "gpu_name_kill": "<清空所选的显卡>",
   "gpu_size": "显卡最大占用值",
   "par_name": "ParsecID",
@@ -32,7 +33,6 @@
   "not_good": "还没开发完成，请耐心等待",
   "vmx_list": "虚拟机名",
   "vmx_list_open": "刷新",
-  "pci_list_load": "⏳读取中...请稍等",
   "min_size": "最低内存(MB)",
   "max_size": "最高内存(MB)",
   "add_pcie": "⬆\uFE0F添加设备",
@@ -68,5 +68,14 @@
   "GPU_EXE_DONE": "GPU分配结果",
   "GPU_NEW_DONE": "GPU虚拟机创建结果",
   "GPU_NEW_FAIL": "GPU虚拟机创建错误",
-  "GPU_NOT_FIND": "无法找到此CPU对应路径"
+  "GPU_NOT_FIND": "无法找到此CPU对应路径",
+  "app_info": [
+    "\n\nHyper-V GPU虚拟化管理工具\n\n",
+    "       版本 v0.2 2024/12/10\n\n",
+    "         作者：Pikachu Ren\n"
+  ],
+  "git_page": "\uD83D\uDE3A访问Github",
+  "git_back": "\uD83D\uDCAC反馈问题",
+  "__N001__": "",
+  "__N002__": ""
 }

@@ -405,7 +405,7 @@ class UIConfig:
                     "text": {
                         "entry": ttk.Label,
                         "start": None,
-                        "width": 7,
+                        "width": 10,
                         "lines": 1,
                         "saves": ttk.StringVar,
                         "color": "danger",
@@ -430,13 +430,48 @@ class UIConfig:
             },
         },
         "about_us": {
-            "not_good": {
+            "app_info": {
                 "entry": ttk.Label,
-                "start": None,
-                "width": None,
-                "lines": 1,
+                "lines": 6,
+                "width": 90,
                 "color": "info",
                 "addon": {}
             },
+            "__N001__": {
+                "entry": ttk.Label,
+                "lines": 2,
+                "width": 8,
+                "color": "dark",
+                "addon": {}
+            },
+            "git_page": {
+                "entry": ttk.Button,
+                "lines": 1,
+                "width": 8,
+                "color": "dark",
+                "addon": {}
+            },
+            "git_back": {
+                "entry": ttk.Button,
+                "lines": 1,
+                "width": 8,
+                "color": "info",
+                "addon": {}
+            },
+            "__N002__": {
+                "entry": ttk.Label,
+                "lines": 2,
+                "width": 8,
+                "color": "dark",
+                "addon": {}
+            },
+            # "not_good": {
+            #     "entry": ttk.Label,
+            #     "start": None,
+            #     "width": None,
+            #     "lines": 1,
+            #     "color": "info",
+            #     "addon": {}
+            # },
         },
     }

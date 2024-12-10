@@ -35,9 +35,9 @@ $pcidevs = $pnpdevs | Where-Object {$_.InstanceId -like "PCI*"}
 $counter = 0
 foreach ($pcidev in $pcidevs) {
     $counter = $counter + 1
-    if ($counter -gt 3){
-        break
-    }
+    #if ($counter -gt 3){
+    #    break
+    #}
 
 
     Write-Host "########"

@@ -1,6 +1,6 @@
 # 参数：虚拟机名称
 param(
-    [string]$VMName
+    [string]$VMName,
     [string]$GPUName
 )
 

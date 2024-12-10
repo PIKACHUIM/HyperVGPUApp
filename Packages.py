@@ -4,17 +4,22 @@ from cx_Freeze import setup, Executable
 
 # ADD FILES
 add_files = [
+    ("./Modules/", "lib/PSSParsing/"),
     ("./Configs/", ""),
     ("./DDATool/", ""),
     ("./Scripts/", ""),
+    ("./ChangePV.ps1", ""),
+    ("./CheckDDA.ps1", ""),
     ("./CopyFile.psm1", ""),
     ("./CreateVM.ps1", ""),
     ("./CreateVM.txt", ""),
+    ("./DDATools.exe", ""),
     ("./PreCheck.ps1", ""),
     ("./SyncFile.ps1", ""),
+    ("./UpdateVM.ps1", ""),
     ("./README.md", ""),
     ("./LICENSE", ""),
-    ("./Modules/", "lib/PSSParsing/"),
+
 ]
 # TARGET
 target = Executable(
