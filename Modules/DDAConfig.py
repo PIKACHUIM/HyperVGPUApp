@@ -1,3 +1,4 @@
+import os
 import threading
 
 from Modules.DDADevice import DDAData, DT
@@ -178,11 +179,17 @@ class PCIConfig(threading.Thread):
         self.add_gpu_file()
 
     def add_gpu_file(self):
-        self.log_apis("更新显卡驱动: %s-%s" % (self.vmx_name, self.gpu_name))
-        result_cmd = PS1Loader("UpdateVM.ps1 -VMName '%s' -GPUName '%s'" % (
-            self.vmx_name, self.gpu_name))
-        result_cmd.setDaemon(True)
-        result_cmd.start()
+        self.log_apis("更新显卡驱动: %s %s" % (self.vmx_name, self.gpu_name))
+        # update_cmd = "UpdateDS.ps1 '%s' '%s'" % (self.vmx_name, self.gpu_name)
+        # update_cmd = "powershell \".\\UpdateDS.ps1 -VMName '%s' -GPUName '%s'\"" % (self.vmx_name, self.gpu_name)
+        update_cmd = ".\\UpdateDS.ps1 -VMName '%s' -GPUName '%s'" % (self.vmx_name, self.gpu_name)
+        # result_cmd = PS1Loader(update_cmd, in_type="cmds")
+        # result_cmd.setDaemon(True)
+        # result_cmd.start()
+        # print('powershell \"%s\"' % update_cmd)
+        # os.system('powershell \"%s\"' % update_cmd)
+        result_cmd = PS1Loader.cmd(update_cmd, self.log_apis, execute="powershell -ExecutionPolicy Bypass")
+        self.log_apis("更新驱动结果: %s" % result_cmd)
 
     def set_gpu_size(self, gpu_size):
         self.log_apis("修改动态分配: Min %s" % gpu_size)

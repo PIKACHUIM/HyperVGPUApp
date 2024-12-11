@@ -1,13 +1,3 @@
-<# 
-If you are opening this file in Powershell ISE you should modify the params section like so...
-
-Param (
-    [string]$VMName = "NameofyourVM",
-    [int]$GPUResourceAllocationPercentage = 50
-)
-
-#>
-
 Param (
     [string]$VMName,
     [int]$GPUResourceAllocationPercentage
@@ -15,32 +5,37 @@ Param (
 
 $VM = Get-VM -VMName $VMName
 
-if (($VMName -AND $GPUResourceAllocationPercentage) -ne [string]$null) {
-    If ($VM.state -eq "Running") {
+if (($VMName -AND $GPUResourceAllocationPercentage) -ne [string]$null)
+{
+    If ($VM.state -eq "Running")
+    {
         [bool]$state_was_running = $true
-        }
-    
-    if ($VM.state -ne "Off"){
+    }
+
+    if ($VM.state -ne "Off")
+    {
         "Attemping to shutdown VM..."
         Stop-VM -Name $VMName -Force
-        } 
-    
-    While ($VM.State -ne "Off") {
+    }
+
+    While ($VM.State -ne "Off")
+    {
         Start-Sleep -s 3
         "Waiting for VM to shutdown - make sure there are no unsaved documents..."
-        }
+    }
 
-    [float]$devider = [math]::round($(100 / $GPUResourceAllocationPercentage), 2)
+    [float]$devider = [math]::round($( 100 / $GPUResourceAllocationPercentage ), 2)
 
-    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionVRAM ([math]::round($(1000000000 / $devider))) -MaxPartitionVRAM ([math]::round($(1000000000 / $devider))) -OptimalPartitionVRAM ([math]::round($(1000000000 / $devider)))
-    Set-VMGPUPartitionAdapter -VMName $VMName -MinPartitionEncode ([math]::round($(18446744073709551615 / $devider))) -MaxPartitionEncode ([math]::round($(18446744073709551615 / $devider))) -OptimalPartitionEncode ([math]::round($(18446744073709551615 / $devider)))
-    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionDecode ([math]::round($(1000000000 / $devider))) -MaxPartitionDecode ([math]::round($(1000000000 / $devider))) -OptimalPartitionDecode ([math]::round($(1000000000 / $devider)))
-    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionCompute ([math]::round($(1000000000 / $devider))) -MaxPartitionCompute ([math]::round($(1000000000 / $devider))) -OptimalPartitionCompute ([math]::round($(1000000000 / $devider)))
+    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionVRAM ([math]::round($( 1000000000 / $devider ))) -MaxPartitionVRAM ([math]::round($( 1000000000 / $devider ))) -OptimalPartitionVRAM ([math]::round($( 1000000000 / $devider )))
+    Set-VMGPUPartitionAdapter -VMName $VMName -MinPartitionEncode ([math]::round($( 18446744073709551615 / $devider ))) -MaxPartitionEncode ([math]::round($( 18446744073709551615 / $devider ))) -OptimalPartitionEncode ([math]::round($( 18446744073709551615 / $devider )))
+    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionDecode ([math]::round($( 1000000000 / $devider ))) -MaxPartitionDecode ([math]::round($( 1000000000 / $devider ))) -OptimalPartitionDecode ([math]::round($( 1000000000 / $devider )))
+    Set-VMGpuPartitionAdapter -VMName $VMName -MinPartitionCompute ([math]::round($( 1000000000 / $devider ))) -MaxPartitionCompute ([math]::round($( 1000000000 / $devider ))) -OptimalPartitionCompute ([math]::round($( 1000000000 / $devider )))
 
-    If ($state_was_running){
+    If ($state_was_running)
+    {
         "Previous State was running so starting VM..."
         Start-VM $VMName
-        }
+    }
 
     "Done..."
 }
@@ -48,8 +43,8 @@ if (($VMName -AND $GPUResourceAllocationPercentage) -ne [string]$null) {
 # SIG # Begin signature block
 # MIItPAYJKoZIhvcNAQcCoIItLTCCLSkCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAMZckjFt9201wq
-# 20PKOQoWfzucS+EilslSuBMWNrjX26CCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA930HlRcSqNe55
+# mao76WTJ4gCjEEJ3pF50xK++fSF6baCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -150,23 +145,23 @@ if (($VMName -AND $GPUResourceAllocationPercentage) -ne [string]$null) {
 # Ew9TZWN0aWdvIExpbWl0ZWQxKzApBgNVBAMTIlNlY3RpZ28gUHVibGljIENvZGUg
 # U2lnbmluZyBDQSBSMzYCEQDJQtVKxGjxZ+PGgaihP65RMA0GCWCGSAFlAwQCAQUA
 # oHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQw
-# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEINp5
-# foexosmHypgI21EGSAK2G3S7QwPme7HodGfM4lrxMA0GCSqGSIb3DQEBAQUABIIC
-# AHdRoY0r7y+s0JJyZRzFWaCoprc25EMnPMQIqoqAwm/ozrHqmWSNPEipqFV1g77Z
-# d7Es9Ejd/g9B+M5YqcfdZcLScz7XvmvxYEtCGjiWPoneYCKOE2GxTEZeFpYXGla8
-# PKQK9TBp48dUpKPcUNvb69vkJ+nuEaD/fx2mXfW7JhfHzj0K521IFLk+eaMGumiR
-# oOFoXm8FgDDpyvlkIzNkrK7FegIL/JNv64FBl9nKULkeu6zVVWbfcq9XuG6X2L7s
-# P70YDEFf6ZxLDYlYiNpi6PVJSdb34ux89Y7D6PUqgPAKgwvJerDb/I+o0z2GKAqE
-# AoKH3EjjZCJ5WWnUUy8HxxOY/oVIh5CoY0rDaVxY++jwNs8ACI+/uoGzFkyZIn/6
-# u9K+x5oZdtoEVlsVC72IolaA0Occck0MgD4lpYoAxz9AUhUw6L2XvR5TUzMzI+Q4
-# cgwbSML+WGGxuIcR5XsnqeRv10TIhrBYYV92gXyyENr3ouo4zzZF1nGjF1o2RjoI
-# meI/RONu6OusI/M3t7A2c8OVVYZQWTQb/fVRwxfl0rVWPkQCGR8ysw1FUeGKukiC
-# a+lXL2UK+GGcknPp2Pi4fw+1+p+CQqAkV+KVM62TrnX1bYuRrcGCDduXJicMu7B3
-# Cnm9cTxW++R1BY3jc0JR6bS7fCbFDiuAnhlQ1RMOwXFYoYIXWzCCF1cGCisGAQQB
+# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIFBP
+# 2EtCR9mk7hVKI1jHbuNgjRNJoL0Q7/Lq02+Rh73dMA0GCSqGSIb3DQEBAQUABIIC
+# AD/KPn3DXWMvmiRKxdOEBcU/tYjH+pCph6hSoLQ1JdiDXEuJ77at1L8nTQXBw8Vk
+# JMFm4rVnVSaalFWBuP9hWIHU+k5IC3aRuCiPuEONPyA0gKivb6J8QvZ0bZzHUURP
+# 3aJI5TBtDF5mU+hyLghevKtgqTW6aMGbXdEQRGYmwXmDPJGzxSetaMZt+YIT3KwT
+# f+9hu7JBC/ETDhfmhqHC73nWNok/98EvNvLjCRPkD7VTTp7eWT1E7W0dlnxwUvzf
+# 5xCX659QsvQdroNZh990lm7YBagdU98UTi2b47EOHslhZIuNNc0HqOaTZa6KzodG
+# dQ1N9cAhxytUb3Iqse6eBwkwtLklvMehCsbu5z2dph6aseQrA1rdX6Jlf73fcl2T
+# Ei+ZAhQ/YSw4Q0uzrThqTIUvkjT3uOcnpvhKW88Kvixgs1Bxz06AGCpYaz1My6Fk
+# uqEEJPteK49oND/1pNxttw8msYVhjDnMgUxJbKlkEvpdSukt7Bgg59K6+SMn1B0t
+# 91D07vGifg5BPXfgDvLYZBSu8+7N4ypiv1japWfLqhCfvgbgVooqNIMWmG9UmPvN
+# GyFv3CV3cig7mRIEnbc3zpPdAkPdMBk1LFS8zljk/OUK72nDcBb4hnz3NrXcA2e2
+# 6jL1j2Y3R/8UpLNmE1ocUcQbXob/QzDdTeAytVxufQwGoYIXWzCCF1cGCisGAQQB
 # gjcDAwExghdHMIIXQwYJKoZIhvcNAQcCoIIXNDCCFzACAQMxDzANBglghkgBZQME
 # AgIFADCBiAYLKoZIhvcNAQkQAQSgeQR3MHUCAQEGCWCGSAGG/WwHATBBMA0GCWCG
-# SAFlAwQCAgUABDAMl1cPikBAeidEaFPGRVPuO6+o0AmT6kEHbHUC8fhDHzaK6ZMH
-# KdTyk6BQoQr9fv0CEQDq1hHk2uj60+uMRbJJn0E2GA8yMDI0MTIxMTAzMDgyNlqg
+# SAFlAwQCAgUABDAPXTmzKEcGm8bU8g4rWXf0sj9ejLX9c08AkZsIV+PD6zU5mLff
+# tRzsumtdIKPAFQ8CEQDK7sNtLUW0YLH2Mq5WiCaiGA8yMDI0MTIxMTEwMDY1NVqg
 # ghMDMIIGvDCCBKSgAwIBAgIQC65mvFq6f5WHxvnpBOMzBDANBgkqhkiG9w0BAQsF
 # ADBjMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNV
 # BAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1w
@@ -272,20 +267,20 @@ if (($VMName -AND $GPUResourceAllocationPercentage) -ne [string]$null) {
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgIFAKCB4TAaBgkqhkiG9w0BCQMxDQYLKoZI
-# hvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI0MTIxMTAzMDgyNlowKwYLKoZIhvcN
+# hvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI0MTIxMTEwMDY1NVowKwYLKoZIhvcN
 # AQkQAgwxHDAaMBgwFgQU29OF7mLb0j575PZxSFCHJNWGW0UwNwYLKoZIhvcNAQkQ
 # Ai8xKDAmMCQwIgQgdnafqPJjLx9DCzojMK7WVnX+13PbBdZluQWTmEOPmtswPwYJ
-# KoZIhvcNAQkEMTIEMOiWbd70jsZk3RiTlExcpIpmmHy3ujhse11xxIMSw+xcyu+z
-# N13HIjAye/V6PT3C0jANBgkqhkiG9w0BAQEFAASCAgCfAGMhTfjr8+0n8+uGy5dr
-# REYbl/Svfyn36MO6xRIuqgBmuwqLEU60R1M1to6QuKKLk3h9Nra3XnDd5zAfurZ6
-# qa0UEc895s04kMf1ZF6Zogza72icdwdK4qBQo54jemRopTUudeorZI1JLt7BHgC2
-# ypFY+2Da3mVg/1UhL6irtlgMPwZNGzA38oiSV6eiD/8j1CQoQeu5Liz+rtrn2q38
-# U0XWm1hvDQaZcHNnb0EAhcb/mOJuBDPx3t413kMZz//gyTsEnt0D9MP6LOydR7Ad
-# pYb542cOZ5R8ucaVZdJ1mS3KIg5UCH20YJxJn+2XvJkFW7/zOf8AE2QaIZDRlthb
-# MNfGvTdRfC04Q5KMC8O7DAKlOMAFrmKWRVvsmiXMQQtYOUfFecqQx1uWhQFsgv5D
-# va5aQaijOfy3Bqb3Y1wxjJxKp2PUulr1eyXIRmIxs21sJXYTrqsVUsfz8Ru5ggGC
-# t+TAA22LMBqgpjQQQxYRwtDt3Hmaop776QoBwYY+tNZhNSRN8//A3Nlf8/I8eTLL
-# KdF4crD8nbwz4XergL7+GlUDzdYgmuMClyLiir87EBmCy39kdKP/Rh3uFgkJy0Xe
-# aerUqQ7lLmXl/IJShxiY+hx5NT9pa5jC+C+Hv2OdHOUvGbU/hYOurZkOC/oMpLOj
-# JzC4Z8iZm1XAgXDxw5vb/w==
+# KoZIhvcNAQkEMTIEMHAOHkDuyHJvyYiZhYMz8xKZkDxLkKI3Ri9mAEbFbFTrIqzz
+# UirtzXVmIDG5fpxYfzANBgkqhkiG9w0BAQEFAASCAgCfos3dszDd8w5ouHRKZr3i
+# RirJMXZEgEMk9m23YJ+rr/+NkUahm2jg3ZupcRqxhUOMbAsrMVC/0xj14AyJJv+6
+# NOeDY6Khr7Tf8ZUnwjfz2K5BeCwSfwrfxTpOmU59IgRa411Wa8Hp0IZJR9By3LOj
+# 3pILRHPZxQUbjSEGuRwKQIRyMCl3lRK+2WVceLiLfmw7IkZerlhIIXhJ6fmtR9WJ
+# 4sFnLiaiRCsqXfSv2MS6CWtYkD+GloSFKWnO2Q+dJu6ifAzYpN7U+93Bv6AST9oM
+# i1VjtLoMaFSoPAe1pEj57srBUaiiDueVrJ0eDDKHkKnJve76QwJri5WqYzZ7+4FT
+# jk3jFxRhhSVFT/+ka+7dl7l24hXP5Q+0ey7D1nLA3pt45ohrWHANLtOraR08xWU7
+# 7LbwrhiyUoWRgbNrNH0wyegYA3ht7L/2FSsRQNlKSWAi8If2mXDlHQVj95F6QtUs
+# mG7cGIQLuhSGOEJn5VdzJlCuGH4ORmUOlpqihmuslchBg9bN8+tU/2aS1kL+v2AC
+# CfsBJaWPjT26VCxaSghYzVOiWQIK2duTAiv4Rb7++kAZ+TEEFS4XrbQffUzN/l/k
+# 1upzOreSr1maigHwXBPIiHvyNbTk46vPIQSgELfJoZzt/OSg0FjeLLvfh7QN7ikj
+# 6giW3uEYB5xULOb/d23zOQ==
 # SIG # End signature block

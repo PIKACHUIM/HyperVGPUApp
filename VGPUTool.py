@@ -1,5 +1,6 @@
 import os
 import json
+import platform
 import time
 import traceback
 import webbrowser
@@ -10,7 +11,6 @@ import pyglet
 import locale
 import tkinter
 import threading
-import subprocess
 import ttkbootstrap as ttk
 from ttkbootstrap import *
 
@@ -20,7 +20,7 @@ from Modules.DDAConfig import PCIConfig
 from Modules.PS1Loader import PS1Loader
 from Modules.HintEntry import HintEntry
 from Modules.LogOutput import Log, LL
-from UIConfig import UIConfig, Function
+from Modules.AppConfig import UIConfig, Function
 
 
 class VGPUTool:
@@ -48,6 +48,7 @@ class VGPUTool:
         # DDA 设备 ============================================================
         self.dda_page = PCIConfig(self.logs, "")  # PCIConfig 设置界面
         # self.dda_page = None  # PCIConfig 设置界面
+        self.dda_flag = platform.system().lower().find("server") >= 0
         self.dda_list = None  # Name->DDAData 当前电脑上所有可以但没有DDA的设备
         self.dda_last = None  # Path->DDAData 当前所选择的虚拟机已经DDA了的设备
         self.gpu_maps = {}  # GPU Name->GPU UUID映射可用GPU名称到实例路径以分配
@@ -158,7 +159,7 @@ class VGPUTool:
                 # 设置表格 =======================================================================================
                 if type(com_objs) == type(ttk.Treeview) and 'table' in com_data:
                     tmp_data["entry"]["columns"] = tuple(com_data['table'].keys())
-                    print(tuple(com_data['table'].keys()))
+                    # print(tuple(com_data['table'].keys()))
                     tmp_data["entry"].column("#0", width=18)
                     tmp_data["entry"].heading("#0", text="#", anchor='center')
                     count = 0
@@ -204,7 +205,10 @@ class VGPUTool:
         self.update_vmx_list()
         self.update_gpu_list()
         self.update_net_list()
-        self.update_dda_list()
+        if self.dda_flag:
+            self.update_dda_list()
+        else:
+            self.lock_dda_config()
 
     @staticmethod
     def url_github(url=""):
@@ -231,7 +235,7 @@ class VGPUTool:
         c['pci_push']['entry'].config(command=self.submit_pci_page)
         c['pci_info']['entry'].config(command=self.get_details)
         self.view["about_us"]['git_page']['entry'].config(command=partial(
-            VGPUTool.url_github,'https://github.com/PIKACHUIM/HyperVGPUApp'
+            VGPUTool.url_github, 'https://github.com/PIKACHUIM/HyperVGPUApp'
         ))
         self.view["about_us"]['git_back']['entry'].config(command=partial(
             VGPUTool.url_github, 'https://github.com/PIKACHUIM/HyperVGPUApp/issues'
@@ -328,7 +332,7 @@ class VGPUTool:
             push.config(state=tk.NORMAL)
         else:
             push.config(state=tk.DISABLED)
-        print(selected)
+        # print(selected)
 
     #
     def dev_gpu_changed(self, *args):
@@ -336,13 +340,10 @@ class VGPUTool:
             gpu_name = self.view[tab_name]['gpu_name']['saves']
             gpu_size = self.view[tab_name]['gpu_size']['saves']
             if gpu_name.get() == self.i18nString("gpu_name_kill"):
-                gpu_size.set("")
+                gpu_size.set(0)
                 gpu_name.set("")
             if len(gpu_name.get()) > 0:
-                if type(gpu_size) is str and len(gpu_size.get()) <= 0:
-                    gpu_size.set(50)
-                if type(gpu_size) is int and gpu_size.get() <= 0:
-                    gpu_size.set(50)
+                gpu_size.set(50)
 
     # 检查输入内容 ################################################################
     def config_var_load(self, in_var):
@@ -394,6 +395,13 @@ class VGPUTool:
         self.lock_ui_element(flag, 'gpv_init', blocks)
         self.lock_ui_element(flag, 'gpv_conf', blocks[:2])
 
+    def lock_dda_config(self):
+        blocks = ['pci_type', 'pci_name', 'pci_info',
+                  'add_pcie', 'disabled',
+                  'pci_load', 'del_pcie', 'pci_deal']
+        self.lock_ui_element(True, 'gpv_conf', blocks,
+                             txt_show="txt_fail")
+
     def lock_dda_update(self, flag):
         blocks = ['pci_type', 'pci_name', 'pci_info',
                   'add_pcie', 'pci_push', 'disabled',
@@ -405,8 +413,12 @@ class VGPUTool:
                   'max_size', 'currents', 'del_pcie', 'pci_deal']
         self.lock_ui_element(flag, 'gpv_conf', blocks)
 
-    def lock_ui_element(self, flag: bool, tab_name: str, com_list: list):
-        status = tk.DISABLED if flag else tk.NORMAL
+    def lock_ui_element(self,
+                        set_flag: bool,
+                        tab_name: str,
+                        com_list: list,
+                        txt_show: str = "txt_load"):
+        status = tk.DISABLED if set_flag else tk.NORMAL
         for com_name in com_list:
             all_data = [self.view[tab_name][com_name]['entry']]
             for sub_data in self.view[tab_name][com_name]['addon']:
@@ -415,13 +427,13 @@ class VGPUTool:
                 try:
                     if type(now_data) in (ttk.Entry, ttk.Combobox):
                         now_data.delete(0, END)
-                        if flag:
+                        if set_flag:
                             now_data.insert(0, self.i18nString("app_load"))
                     if type(now_data) in (ttk.Entry, ttk.Combobox, ttk.Button, ttk.Checkbutton):
                         now_data.config(state=status)
                     if type(now_data) in (ttk.Progressbar,):
-                        now_data['mode'] = 'indeterminate' if flag else "determinate"
-                        if flag:
+                        now_data['mode'] = 'indeterminate' if set_flag else "determinate"
+                        if set_flag:
                             now_data.start(20)
                         else:
                             now_data.stop()
@@ -431,17 +443,17 @@ class VGPUTool:
                     if type(now_data) == ttk.Treeview:
                         if tab_name not in self.tmp_view:
                             self.tmp_view[tab_name] = {}
-                        if flag:
+                        if set_flag:
                             if com_name in self.tmp_view[tab_name]:
                                 continue
-                            print(tab_name, com_name, flag)
+                            # print(tab_name, com_name, set_flag)
                             tmp_grid = self.grid[tab_name][com_name]['entry']
-                            tmp_text = ttk.Label(self.page[tab_name], text=self.i18nString("txt_load"))
+                            tmp_text = ttk.Label(self.page[tab_name], text=self.i18nString(txt_show))
                             tmp_text.grid(pady=10, row=tmp_grid[0], column=tmp_grid[1] + 2,
                                           columnspan=tmp_grid[2], padx=10, sticky=W)
                             self.tmp_view[tab_name][com_name] = tmp_text
                         elif com_name in self.tmp_view[tab_name]:
-                            print(tab_name, com_name, flag)
+                            # print(tab_name, com_name, set_flag)
                             self.tmp_view[tab_name][com_name].grid_forget()
                             self.tmp_view[tab_name].pop(com_name)
 
@@ -477,7 +489,7 @@ class VGPUTool:
     # 获取当前PV虚拟显卡 ##########################################################################
     def update_gpu_list(self):
         self.lock_gpu_update(True)
-        update_thread = PS1Loader("PreCheck.ps1")
+        update_thread = PS1Loader("CheckGPU.ps1")
         update_thread.daemon = True
         update_thread.start()
         loader_thread = threading.Thread(target=self.update_gpu_call, args=(update_thread,))
@@ -637,8 +649,8 @@ class VGPUTool:
                         self.view["gpv_init"]['win_pass']['saves'].get(),
                         "true" if self.view["gpv_init"]['aur_boot']['saves'].get() else "false",
                     ))
-        print(var_conf)
-        with open("CreateVM.txt", encoding="utf8") as read_file:
+        # print(var_conf)
+        with open("CreateVM.ps1", encoding="utf8") as read_file:
             read_data = read_file.read()
         read_data = var_conf + read_data
         with open("TmpSaves.ps1", 'w', encoding="utf8") as save_file:
@@ -683,14 +695,16 @@ class VGPUTool:
             self.dda_page.set_mem_size(new_min_size, "LowMemoryMappedIoSpace")
         if new_max_size != self.dda_page.max_size:
             self.dda_page.set_mem_size(new_max_size, "HighMemoryMappedIoSpace")
-        for dda_path in self.dda_last:
-            dda_data = self.dda_last[dda_path]
-            if dda_data.flag.value == DT.DEV_WAIT_DEL.value:
-                self.dda_page.add_dda_pass(dda_data.path)
-        for dda_name in self.dda_list:
-            dda_data = self.dda_list[dda_name]
-            if dda_data.flag.value == DT.DEV_WAIT_DDA.value:
-                self.dda_page.del_dda_pass(dda_data.path)
+        if self.dda_last is not None:
+            for dda_path in self.dda_last:
+                dda_data = self.dda_last[dda_path]
+                if dda_data.flag.value == DT.DEV_WAIT_DEL.value:
+                    self.dda_page.add_dda_pass(dda_data.path)
+        if self.dda_list is not None:
+            for dda_name in self.dda_list:
+                dda_data = self.dda_list[dda_name]
+                if dda_data.flag.value == DT.DEV_WAIT_DDA.value:
+                    self.dda_page.del_dda_pass(dda_data.path)
 
 
 if __name__ == "__main__":

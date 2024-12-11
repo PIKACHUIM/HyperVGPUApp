@@ -1,29 +1,53 @@
-﻿if (!(Get-WmiObject Win32_SoundDevice | Where-Object name -like "VB-Audio Virtual Cable"))
+﻿Param (
+    [string]$VMName = "",
+    [string]$GPUName = "",
+    [string]$Hostname = $ENV:Computername
+)
+
+Import-Module $PSSCriptRoot\Scripts\CopyFile.psm1
+
+$VM = Get-VM -VMName $VMName
+$VHD = Get-VHD -VMId $VM.VMId
+
+
+If ($VM.state -eq "Running")
 {
-    (New-Object System.Net.WebClient).DownloadFile("https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip", "C:\Users\$env:USERNAME\Downloads\VBCable.zip")
-    New-Item -Path "C:\Users\$env:Username\Downloads\VBCable" -ItemType Directory| Out-Null
-    Expand-Archive -Path "C:\Users\$env:USERNAME\Downloads\VBCable.zip" -DestinationPath "C:\Users\$env:USERNAME\Downloads\VBCable"
-    $pathToCatFile = "C:\Users\$env:USERNAME\Downloads\VBCable\vbaudio_cable64_win7.cat"
-    $FullCertificateExportPath = "C:\Users\$env:USERNAME\Downloads\VBCable\VBCert.cer"
-    $VB = @{ }
-    $VB.DriverFile = $pathToCatFile;
-    $VB.CertName = $FullCertificateExportPath;
-    $VB.ExportType = [System.Security.Cryptography.X509Certificates.X509ContentType]::Cert;
-    $VB.Cert = (Get-AuthenticodeSignature -filepath $VB.DriverFile).SignerCertificate;
-    [System.IO.File]::WriteAllBytes($VB.CertName,$VB.Cert.Export($VB.ExportType))
-    while (((Get-ChildItem Cert:\LocalMachine\TrustedPublisher) | Where-Object { $_.Subject -like '*Vincent Burel*' }) -eq $NULL)
-    {
-        certutil -Enterprise -Addstore "TrustedPublisher" $VB.CertName
-        Start-Sleep -s 5
-    }
-    Start-Process -FilePath "C:\Users\$env:Username\Downloads\VBCable\VBCABLE_Setup_x64.exe" -ArgumentList '-i','-h'
+    [bool]$state_was_running = $true
 }
 
+if ($VM.state -ne "Off")
+{
+    "Attemping to shutdown VM..."
+    Stop-VM -Name $VMName -Force
+}
+
+While ($VM.State -ne "Off")
+{
+    Start-Sleep -s 3
+    "Waiting for VM to shutdown - make sure there are no unsaved documents..."
+}
+Write-Host "INFO   : GPUName: $GPUName"
+"INFO   : Mounting Drive..."
+$DriveLetter = (Mount-VHD -Path $VHD.Path -PassThru | Get-Disk | Get-Partition | Where-Object { $_.Type -eq 'NTFS' -or ($_.Type -eq 'Basic') } | Get-Volume | ForEach-Object DriveLetter)
+
+"INFO   : Copying GPU Files - this could take a while..."
+Add-VMGPUPartitionAdapterFiles -hostname $Hostname -DriveLetter $DriveLetter -GPUName "$GPUName"
+
+"INFO   : Dismounting Drive..."
+Dismount-VHD -Path $VHD.Path
+
+If ($state_was_running)
+{
+    "INFO   : Previous State was running so starting VM..."
+    Start-VM $VMName
+}
+
+"INFO   : Done..."
 # SIG # Begin signature block
 # MIItOwYJKoZIhvcNAQcCoIItLDCCLSgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBK4yENLkvCh1vv
-# 23DPpGsTs88lZyXI+zO7GE/30/rtoKCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBfhWrRQdw6tkrd
+# 8CMPpPrERVhSCDHDxKdDhsb8nykQu6CCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -124,23 +148,23 @@
 # Ew9TZWN0aWdvIExpbWl0ZWQxKzApBgNVBAMTIlNlY3RpZ28gUHVibGljIENvZGUg
 # U2lnbmluZyBDQSBSMzYCEQDJQtVKxGjxZ+PGgaihP65RMA0GCWCGSAFlAwQCAQUA
 # oHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQw
-# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIFWi
-# HDAtN/f3WNy4HuetAi2D7ckJvUS4KoyjDsc+9xWyMA0GCSqGSIb3DQEBAQUABIIC
-# AI1iohINV0r/BoJAQEKx59fYMZow4X+TicQKUa+wlBiYrtmSj12j9+Ka1APhuyLg
-# pwinKdvf6ZzWq40Qko5objdjqfrmeyZ/9f9u8+IQaisRdr1SLRxZxI6BxmMLJTVX
-# Fp1E9UEQ5oP0r4OGfUCn/3mWQPrd58xD3VeAvv1Y8Le87TWF5YRohAjfMAC2Ay+n
-# C0fO9CMXytPsEUjAsq+RyAvtOHFAl0oNGYKJI2VAlBNo25RruR6auKNZNxkZFs+C
-# WPd0Io/PI5RZh+aaUQ4JvQP0bKpczlrpG+w9l/Bs5aRWnIocoetsN2srrMoNuhEd
-# PlSdUJLWuOYHcK18OfkRYj5DboiGUyPdiaMUjdhD8UV381wlCQ3qzpwcMetAMBN4
-# FvAOjLmdpUdPMhK+BMizZZfU0u4naOlYhvKNNJuVW/NSrJwQ/fir9uaHDZd/PSXV
-# oj5Vp1+fHtZyBm8Dd3mXO6XXpxGmz2jr7FDgIrmU01Q9jc1FnsX/sX/N23oiDhSD
-# RmypHs1ylWEUXFedBA7apwXDjTqBC25dviGV5V36avpSVQ+Fo4kJrBLkWHnCOYxv
-# vPjUIHMCao+HoGi3Y/r9QplRdxwz4EE+qDB3tKSS2o+f9bpAhTgzzREQNQ3XuRNk
-# BYEH4kFmiZ3vb5pfveD/NTPLo1ivrox8kdkOsyU0g2zgoYIXWjCCF1YGCisGAQQB
+# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIPxU
+# 22mTydsLFr4KpG+bZBfvU99PtnkDsve8MlAmMynoMA0GCSqGSIb3DQEBAQUABIIC
+# AAbmbYfKXR526MBHOJxuhoL4RbLD9Ezj2IV1Z/YDFSsDFTi6MGVHeO0Nn9nhSVjm
+# 3nQgw4pHfpjJoj7slGozFhCoEZFhgcdVzc+ho1MeKB6DRVGC9t/mRIekNq9ziZhg
+# DYjQYT4y+eLoNN2qfJSKmzpI7oVGp/2WJcMgod21DEpwYLV9vIIf4E/ACqbJufbp
+# eHEpMpTqcsFPgIitbJFDPklpB4lj1wqECyx6nl7YOE/JgqSkuXA4fZWH+Rf9cT9z
+# Dhiz42mrTcPg6ZVcf5xCKvbW4XHbqAbHPAOtPyHbn5yAF/ztOxT029RTpOzORo1r
+# PCd6KJhDZOPOSRyBoSpfo8/RYi8dBB1rXS55NL8EwuW/NKqSrgVKctUelExS5yMm
+# N2iNNAwbEZ4Ub6AFx6gVYTMEoacorU4v0f0L6+SecXct9zG0PVdgHHxKKmSAO1fK
+# TcPDAL7/N8i1HQVjdTAwd9F9Wx9jpEB6iRgUG3uvYI848v5+XP9hemn5h8WBs5JX
+# qUJlzEGbTlHsBpHK/mbsxT5q3/GwHyD+zcibTX0JuaSl2BRH/KM+zyQYuU6WuvUM
+# BNcgfngl9fTwPZFBrlpdL2P5vwEp7WPmATs9pIhhuA4IU7upTK9AA/w5GKBLXJ7E
+# SXJWBWb97c7GM0LahQSYXD/ujtIUv6MaD8V7paBRfzbjoYIXWjCCF1YGCisGAQQB
 # gjcDAwExghdGMIIXQgYJKoZIhvcNAQcCoIIXMzCCFy8CAQMxDzANBglghkgBZQME
 # AgIFADCBhwYLKoZIhvcNAQkQAQSgeAR2MHQCAQEGCWCGSAGG/WwHATBBMA0GCWCG
-# SAFlAwQCAgUABDBYxqRI2YtZYMCDIbPieuabGyO3RBySFUNSXyXMH9VwaHXsiIai
-# tsGDIibYGEzBETQCEFC0OaD2bW/VGjYGg/hAXFwYDzIwMjQxMjExMTAwNjUwWqCC
+# SAFlAwQCAgUABDDmkZcHAXVvzV/ryYAwVwWdELDeI217ARSzg1Pkn8c7Wbt6x5LZ
+# rtFPpvRIRqvO9xcCEEkm22Y/M1vOLlNYJ4XsJncYDzIwMjQxMjExMTEzNDQyWqCC
 # EwMwgga8MIIEpKADAgECAhALrma8Wrp/lYfG+ekE4zMEMA0GCSqGSIb3DQEBCwUA
 # MGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UE
 # AxMyRGlnaUNlcnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBp
@@ -246,20 +270,20 @@
 # UzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRy
 # dXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENBAhALrma8Wrp/
 # lYfG+ekE4zMEMA0GCWCGSAFlAwQCAgUAoIHhMBoGCSqGSIb3DQEJAzENBgsqhkiG
-# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMTAwNjUwWjArBgsqhkiG9w0B
+# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMTEzNDQyWjArBgsqhkiG9w0B
 # CRACDDEcMBowGDAWBBTb04XuYtvSPnvk9nFIUIck1YZbRTA3BgsqhkiG9w0BCRAC
 # LzEoMCYwJDAiBCB2dp+o8mMvH0MLOiMwrtZWdf7Xc9sF1mW5BZOYQ4+a2zA/Bgkq
-# hkiG9w0BCQQxMgQwWFoo6sXbbcr4ckRcq3Y/smTrnoTsWBBremZ27oK288nztTmp
-# crI4S5DltUbs5Ma3MA0GCSqGSIb3DQEBAQUABIICAAQWrMLKKVcINVlL2U5V/gmu
-# afkHT5u8FiALlfZzSxbbQRVNpAvL8Df/rL++nybP5a//mHQCiyFIg7lIsFAq5CP8
-# lh6IXzrM7EAK5S9e/yvTrOiAx0Wj5gtbfpRwIIGEeXbBum01UQrAq8ugjHnzJsjR
-# IYOKNNW2G1tlbKdCgRIeWf2QRKD6oD8gKpLGPadqjl95fGdT+qaL+xbnHxqcgcr1
-# Lf1iBn8GeYZezgisjP+d/BlcM5xzz74lGyYbUkX30o7n3RfwSwNcWxmZp9Fd0SWD
-# ZSbFOV0V3RHGIyDrxFV/RbW1Y2rgmSjKdFWMdGickeUKBf5D0h2KcHiQXc9qwaMv
-# nAbhupTrP/nKHXlrT/uRzweD8U90xS0vU65kNzhYg6GYiSwAYbjimmVjAFaXRzY1
-# PV8+YIl+dyZtoMMzW5auFNOqo1P40lKbV0driA7ug4kcqX0hJTsbStlTCcKpiAno
-# u0eXAXf7mqKvIDS/Wz87ojORpSdrh4K4epuI7OSc9cELvV6+NCCVJz5MdkhXLEAl
-# b+V1Ir3bgOWceb+cPZ+zsTHD3fjrKx5ZI3o1hELWZ8C4UgVdHKwZ35iw4yN0SE2v
-# uo56VdSx+nDtRgJ8/XEdvXS/SMSA1zdsSL5SaTlo0uWSY/G9exbJa94mQxyftSrU
-# xWTnnBXkmK68+fWFgMlY
+# hkiG9w0BCQQxMgQwHK1blvAfNc3tgCW5ZsEYIpxBS1yyrpZn9vbwun+o6Wwn5DH6
+# TKc6uZStenvIYc8IMA0GCSqGSIb3DQEBAQUABIICAFz+FKOkbkEGQkBl7/evUfor
+# A+qdxsorRwrQrylKSxUFUZLsUvN3OVF7ml4lMSanf1lWDZ3hkaFs85ntcPq/Nxiy
+# zqgyPhnTUjHPEtfqj8C/G8Ibr+Fst0JVOqnjTHVUrk8zo1aXvwyYwG2UJAHg4W+c
+# CVPikeKkLQZlp3xV4K8Nc4l9NDBoZiKkkPo0CGmoD9s5uiH0EbnkMMsjPSSdyQAD
+# /Dp+sq+B91mKFDr7XC2bKAK27v97ctceUyIZx92H8DEXYBxe3b0jGzoH/XGZogjJ
+# cRiKBeo314ffoamjKub/8nQ7ZdQ/+e739j02ShEnauclNoHzQ7A0Oj99Aynb3Xgs
+# vLegtAecZbolld6dMsJqb7mHVjaqHi5PItdWD9aDsC5B2HrlsUOKW1XJ+c7LJ3+O
+# KV7AfSDgY+tb7uQqbTYU9xglXcFwqoEiR01F4kopEaA1AAOaT51KVu0TxpJQ1So1
+# 5QwgIV3IkvaQVpyYn+S4Xr3h9XAS7q0rT0w6qmtj9geY9mef/oVC1djbPXzEhbCc
+# i697o0+UHSsYre6zKzQZFG8cG8UyO26mQWGVcRaoYfe3vVBufM82KRNENkPf+cqE
+# 7oq+k/hEq7FlhLxBhAJ1hcjDxnRjNTBYHxfl2ba5WjDvBE/jckjN2vu4h99K5XY5
+# ysP9fWBjiKeoRaTB+TNk
 # SIG # End signature block

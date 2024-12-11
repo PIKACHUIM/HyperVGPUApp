@@ -23,7 +23,7 @@ class Function:
         return file_path
 
     @staticmethod
-    def splitLists(in_data, in_logs, in_name, prompts=""):
+    def splitLists(in_data, in_logs, in_name, prompts="splitLists"):
         outputs = in_data.split("\n")
         results = []
         for gpu_name in outputs:

@@ -7,33 +7,34 @@ $devpkey_PciDevice_DeviceType = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  1"
 $devpkey_PciDevice_RequiresReservedMemoryRegion = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  34"
 $devpkey_PciDevice_AcsCompatibleUpHierarchy = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  31"
 
-$devprop_PciDevice_DeviceType_PciConventional                        =   0
-$devprop_PciDevice_DeviceType_PciX                                   =   1
-$devprop_PciDevice_DeviceType_PciExpressEndpoint                     =   2
-$devprop_PciDevice_DeviceType_PciExpressLegacyEndpoint               =   3
-$devprop_PciDevice_DeviceType_PciExpressRootComplexIntegratedEndpoint=   4
-$devprop_PciDevice_DeviceType_PciExpressTreatedAsPci                 =   5
-$devprop_PciDevice_BridgeType_PciConventional                        =   6
-$devprop_PciDevice_BridgeType_PciX                                   =   7
-$devprop_PciDevice_BridgeType_PciExpressRootPort                     =   8
-$devprop_PciDevice_BridgeType_PciExpressUpstreamSwitchPort           =   9
-$devprop_PciDevice_BridgeType_PciExpressDownstreamSwitchPort         =  10
-$devprop_PciDevice_BridgeType_PciExpressToPciXBridge                 =  11
-$devprop_PciDevice_BridgeType_PciXToExpressBridge                    =  12
-$devprop_PciDevice_BridgeType_PciExpressTreatedAsPci                 =  13
-$devprop_PciDevice_BridgeType_PciExpressEventCollector               =  14
+$devprop_PciDevice_DeviceType_PciConventional = 0
+$devprop_PciDevice_DeviceType_PciX = 1
+$devprop_PciDevice_DeviceType_PciExpressEndpoint = 2
+$devprop_PciDevice_DeviceType_PciExpressLegacyEndpoint = 3
+$devprop_PciDevice_DeviceType_PciExpressRootComplexIntegratedEndpoint = 4
+$devprop_PciDevice_DeviceType_PciExpressTreatedAsPci = 5
+$devprop_PciDevice_BridgeType_PciConventional = 6
+$devprop_PciDevice_BridgeType_PciX = 7
+$devprop_PciDevice_BridgeType_PciExpressRootPort = 8
+$devprop_PciDevice_BridgeType_PciExpressUpstreamSwitchPort = 9
+$devprop_PciDevice_BridgeType_PciExpressDownstreamSwitchPort = 10
+$devprop_PciDevice_BridgeType_PciExpressToPciXBridge = 11
+$devprop_PciDevice_BridgeType_PciXToExpressBridge = 12
+$devprop_PciDevice_BridgeType_PciExpressTreatedAsPci = 13
+$devprop_PciDevice_BridgeType_PciExpressEventCollector = 14
 
-$devprop_PciDevice_AcsCompatibleUpHierarchy_NotSupported             =   0
-$devprop_PciDevice_AcsCompatibleUpHierarchy_SingleFunctionSupported  =   1
-$devprop_PciDevice_AcsCompatibleUpHierarchy_NoP2PSupported           =   2
-$devprop_PciDevice_AcsCompatibleUpHierarchy_Supported                =   3
+$devprop_PciDevice_AcsCompatibleUpHierarchy_NotSupported = 0
+$devprop_PciDevice_AcsCompatibleUpHierarchy_SingleFunctionSupported = 1
+$devprop_PciDevice_AcsCompatibleUpHierarchy_NoP2PSupported = 2
+$devprop_PciDevice_AcsCompatibleUpHierarchy_Supported = 3
 
 
 #write-host "Generating a list of PCI Express endpoint devices"
 $pnpdevs = Get-PnpDevice -PresentOnly
-$pcidevs = $pnpdevs | Where-Object {$_.InstanceId -like "PCI*"}
+$pcidevs = $pnpdevs | Where-Object { $_.InstanceId -like "PCI*" }
 $counter = 0
-foreach ($pcidev in $pcidevs) {
+foreach ($pcidev in $pcidevs)
+{
     $counter = $counter + 1
     #if ($counter -gt 3){
     #    break
@@ -44,28 +45,39 @@ foreach ($pcidev in $pcidevs) {
     #Write-Host ""
     Write-Host -ForegroundColor White -BackgroundColor Black $pcidev.FriendlyName
 
-    $rmrr =  ($pcidev | Get-PnpDeviceProperty $devpkey_PciDevice_RequiresReservedMemoryRegion).Data
-    if ($rmrr -ne 0) {
+    $rmrr = ($pcidev | Get-PnpDeviceProperty $devpkey_PciDevice_RequiresReservedMemoryRegion).Data
+    if ($rmrr -ne 0)
+    {
         write-host -ForegroundColor Red -BackgroundColor Black "BIOS requires that this device remain attached to BIOS-owned memory.  Not assignable"
         continue
     }
 
-    $acsUp =  ($pcidev | Get-PnpDeviceProperty $devpkey_PciDevice_AcsCompatibleUpHierarchy).Data
-    if ($acsUp -eq $devprop_PciDevice_AcsCompatibleUpHierarchy_NotSupported) {
+    $acsUp = ($pcidev | Get-PnpDeviceProperty $devpkey_PciDevice_AcsCompatibleUpHierarchy).Data
+    if ($acsUp -eq $devprop_PciDevice_AcsCompatibleUpHierarchy_NotSupported)
+    {
         write-host -ForegroundColor Red -BackgroundColor Black "Traffic from this device may be redirected to other devices in the system.  Not assignable"
         continue
     }
 
     $devtype = ($pcidev | Get-PnpDeviceProperty $devpkey_PciDevice_DeviceType).Data
-    if ($devtype -eq $devprop_PciDevice_DeviceType_PciExpressEndpoint) {
+    if ($devtype -eq $devprop_PciDevice_DeviceType_PciExpressEndpoint)
+    {
         # Write-Host "Express Endpoint -- more secure."
-    } else {
-        if ($devtype -eq $devprop_PciDevice_DeviceType_PciExpressRootComplexIntegratedEndpoint) {
+    }
+    else
+    {
+        if ($devtype -eq $devprop_PciDevice_DeviceType_PciExpressRootComplexIntegratedEndpoint)
+        {
             # Write-Host "Embedded Endpoint -- less secure."
-        } else {
-            if ($devtype -eq $devprop_PciDevice_DeviceType_PciExpressTreatedAsPci) {
+        }
+        else
+        {
+            if ($devtype -eq $devprop_PciDevice_DeviceType_PciExpressTreatedAsPci)
+            {
                 Write-Host -ForegroundColor Red -BackgroundColor Black "BIOS kept control of PCI Express for this device.  Not assignable"
-            } else {
+            }
+            else
+            {
                 Write-Host -ForegroundColor Red -BackgroundColor Black "Old-style PCI device, switch port, etc.  Not assignable"
             }
             continue
@@ -78,26 +90,32 @@ foreach ($pcidev in $pcidevs) {
     # Now do a check for the interrupts that the device uses.  Line-based interrupts
     # aren't assignable.
     #
-    $doubleslashDevId = "*" + $pcidev.PNPDeviceID.Replace("\","\\") + "*"
-    $irqAssignments = gwmi -query "select * from Win32_PnPAllocatedResource" | Where-Object {$_.__RELPATH -like "*Win32_IRQResource*"} | Where-Object {$_.Dependent -like $doubleslashDevId}
+    $doubleslashDevId = "*" + $pcidev.PNPDeviceID.Replace("\", "\\") + "*"
+    $irqAssignments = gwmi -query "select * from Win32_PnPAllocatedResource" | Where-Object { $_.__RELPATH -like "*Win32_IRQResource*" } | Where-Object { $_.Dependent -like $doubleslashDevId }
 
     #$irqAssignments | Format-Table -Property __RELPATH
 
-    if ($irqAssignments.length -eq 0) {
+    if ($irqAssignments.length -eq 0)
+    {
         Write-Host -ForegroundColor Green -BackgroundColor Black "It has no interrupts at all. Assignment can work"
-    } else {
+    }
+    else
+    {
         #
         # Find the message-signaled interrupts.  They are reported with a really big number in
         # decimal, one which always happens to start with "42949...".
         #
-        $msiAssignments = $irqAssignments | Where-Object {$_.Antecedent -like "*IRQNumber=42949*"}
-    
+        $msiAssignments = $irqAssignments | Where-Object { $_.Antecedent -like "*IRQNumber=42949*" }
+
         #$msiAssignments | Format-Table -Property __RELPATH
 
-        if ($msiAssignments.length -eq 0) {
+        if ($msiAssignments.length -eq 0)
+        {
             Write-Host -ForegroundColor Red -BackgroundColor Black "All of the interrupts are line-based. Not assignable"
             continue
-        } else {
+        }
+        else
+        {
             Write-Host -ForegroundColor Green -BackgroundColor Black "Its interrupts are message-based. Assignment can work"
         }
     }
@@ -115,17 +133,18 @@ foreach ($pcidev in $pcidevs) {
 # is mostly equivalent to asking whether it supports Discrete Device
 # Assignment.
 #
-if ((Get-VMHost).IovSupport -eq $false) {
+if ((Get-VMHost).IovSupport -eq $false)
+{
     #Write-Host ""
     #write-host "Unfortunately, this machine doesn't support using them in a VM."
     #Write-Host ""
     (Get-VMHost).IovSupportReasons
 }
 # SIG # Begin signature block
-# MIItPAYJKoZIhvcNAQcCoIItLTCCLSkCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIItOwYJKoZIhvcNAQcCoIItLDCCLSgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCfYAxGj1XUXy3L
-# Q6+zEiP9mQnUZ2vJoRR0tBkzA6TRoKCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA5or5XxC3agQrZ
+# aMZAXbR5pDRyaVldSlR+KSGpyxmrC6CCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -222,146 +241,146 @@ if ((Get-VMHost).IovSupport -eq $false) {
 # FvryW31HsOmTcEmoDizfIRiv6xk54q/CcqpuWXgthjDeyK6rFG/TV1a7hqJhCr5q
 # ji3lI0TpriIspXSADXdzLkuQy4edUmud1Wy2b6Y9jWj9uMy6Tl3wX5CM2maZ210O
 # HFZVmO7brniCrN7IQg0xtz0KPOvVPYa2R1YVqIWC4RQosrzcJg/WJUpf1itxBC66
-# PlmEocQbOuqUqdExghpxMIIabQIBATBpMFQxCzAJBgNVBAYTAkdCMRgwFgYDVQQK
+# PlmEocQbOuqUqdExghpwMIIabAIBATBpMFQxCzAJBgNVBAYTAkdCMRgwFgYDVQQK
 # Ew9TZWN0aWdvIExpbWl0ZWQxKzApBgNVBAMTIlNlY3RpZ28gUHVibGljIENvZGUg
 # U2lnbmluZyBDQSBSMzYCEQDJQtVKxGjxZ+PGgaihP65RMA0GCWCGSAFlAwQCAQUA
 # oHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQw
-# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIDZY
-# rACMpX3we1Sey6dYJNJYfaregne8hvxldPgiLFcnMA0GCSqGSIb3DQEBAQUABIIC
-# AApUst74XCyZdQu4Krj2us6FjViCEB4RnbhLMxbiQxain9hElyGNWKXWCXmPB/Xj
-# WNXC2/+SoRC8UCRIgJy/HuvWb8rLvOtVmNVu0vz2FgNs2rlpGkEnlFP8vTGXjqAI
-# T31KaJHkGks97wlRmD2Gau+IdZ55QwW+Htci27YRQ4LjpAJcP0TATgfluu3Z7Lbr
-# o13+XkWBPgXxrsxDOGN2VwbDofFo3uBri3lgfHwsIp7ROOSmXvcjEo2LKN7GSDfb
-# Fcvlk8RO9W68eXzysYSSu/Wan5odCdTmVWpui5uYiWIj5EmTWQwIBVv1aNLAzQFv
-# A7EyARDbNZwZUMWz/tUHcqRHkMGoIbKlg3KjKx0FYiTpzx9a+r+HdAeN235A4Jo3
-# hKIvCOLNAONwnEmfcM50i8QITBUVFDJIbSesV60jF/cTYH7+SP2RMIUbTZyIP37J
-# xw1dMI8K1v1LTPM/Bgs/XLNff8gdB5q6T2BG0Zf70aOb3WtZ/hj8LBjKDvNWYR91
-# 6f/1b2/DiS4JP6HW24tF/Cwcb11iyNAdy9ETy/QT+Fbwk1Ibn8R38yzLzhScLreu
-# /JCdk9G/9uMlk4GQIraxJ93M12AAgrP/f0ahkhILllxmUHq7LiRr2V4+KlZWbVr+
-# qn0igf8reT8uueqBExhNJYYOS7dDLcgG1M+mfeGWwwE6oYIXWzCCF1cGCisGAQQB
-# gjcDAwExghdHMIIXQwYJKoZIhvcNAQcCoIIXNDCCFzACAQMxDzANBglghkgBZQME
-# AgIFADCBiAYLKoZIhvcNAQkQAQSgeQR3MHUCAQEGCWCGSAGG/WwHATBBMA0GCWCG
-# SAFlAwQCAgUABDDn6xWopqB6iVwhE/wqR9Z7RxtS0lSgzpG3Qrt6wZf5oDmom+uK
-# s2B9VZmPeKajejQCEQCA4SdeWqQoOB7ewxNZz77uGA8yMDI0MTIxMTAzMDczOVqg
-# ghMDMIIGvDCCBKSgAwIBAgIQC65mvFq6f5WHxvnpBOMzBDANBgkqhkiG9w0BAQsF
-# ADBjMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNV
-# BAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1w
-# aW5nIENBMB4XDTI0MDkyNjAwMDAwMFoXDTM1MTEyNTIzNTk1OVowQjELMAkGA1UE
-# BhMCVVMxETAPBgNVBAoTCERpZ2lDZXJ0MSAwHgYDVQQDExdEaWdpQ2VydCBUaW1l
-# c3RhbXAgMjAyNDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAL5qc5/2
-# lSGrljC6W23mWaO16P2RHxjEiDtqmeOlwf0KMCBDEr4IxHRGd7+L660x5XltSVhh
-# K64zi9CeC9B6lUdXM0s71EOcRe8+CEJp+3R2O8oo76EO7o5tLuslxdr9Qq82aKcp
-# A9O//X6QE+AcaU/byaCagLD/GLoUb35SfWHh43rOH3bpLEx7pZ7avVnpUVmPvkxT
-# 8c2a2yC0WMp8hMu60tZR0ChaV76Nhnj37DEYTX9ReNZ8hIOYe4jl7/r419CvEYVI
-# rH6sN00yx49boUuumF9i2T8UuKGn9966fR5X6kgXj3o5WHhHVO+NBikDO0mlUh90
-# 2wS/Eeh8F/UFaRp1z5SnROHwSJ+QQRZ1fisD8UTVDSupWJNstVkiqLq+ISTdEjJK
-# GjVfIcsgA4l9cbk8Smlzddh4EfvFrpVNnes4c16Jidj5XiPVdsn5n10jxmGpxoMc
-# 6iPkoaDhi6JjHd5ibfdp5uzIXp4P0wXkgNs+CO/CacBqU0R4k+8h6gYldp4FCMgr
-# XdKWfM4N0u25OEAuEa3JyidxW48jwBqIJqImd93NRxvd1aepSeNeREXAu2xUDEW8
-# aqzFQDYmr9ZONuc2MhTMizchNULpUEoA6Vva7b1XCB+1rxvbKmLqfY/M/SdV6mwW
-# TyeVy5Z/JkvMFpnQy5wR14GJcv6dQ4aEKOX5AgMBAAGjggGLMIIBhzAOBgNVHQ8B
-# Af8EBAMCB4AwDAYDVR0TAQH/BAIwADAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDAg
-# BgNVHSAEGTAXMAgGBmeBDAEEAjALBglghkgBhv1sBwEwHwYDVR0jBBgwFoAUuhbZ
-# bU2FL3MpdpovdYxqII+eyG8wHQYDVR0OBBYEFJ9XLAN3DigVkGalY17uT5IfdqBb
-# MFoGA1UdHwRTMFEwT6BNoEuGSWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdp
-# Q2VydFRydXN0ZWRHNFJTQTQwOTZTSEEyNTZUaW1lU3RhbXBpbmdDQS5jcmwwgZAG
-# CCsGAQUFBwEBBIGDMIGAMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2Vy
-# dC5jb20wWAYIKwYBBQUHMAKGTGh0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9E
-# aWdpQ2VydFRydXN0ZWRHNFJTQTQwOTZTSEEyNTZUaW1lU3RhbXBpbmdDQS5jcnQw
-# DQYJKoZIhvcNAQELBQADggIBAD2tHh92mVvjOIQSR9lDkfYR25tOCB3RKE/P09x7
-# gUsmXqt40ouRl3lj+8QioVYq3igpwrPvBmZdrlWBb0HvqT00nFSXgmUrDKNSQqGT
-# dpjHsPy+LaalTW0qVjvUBhcHzBMutB6HzeledbDCzFzUy34VarPnvIWrqVogK0qM
-# 8gJhh/+qDEAIdO/KkYesLyTVOoJ4eTq7gj9UFAL1UruJKlTnCVaM2UeUUW/8z3fv
-# jxhN6hdT98Vr2FYlCS7Mbb4Hv5swO+aAXxWUm3WpByXtgVQxiBlTVYzqfLDbe9Pp
-# BKDBfk+rabTFDZXoUke7zPgtd7/fvWTlCs30VAGEsshJmLbJ6ZbQ/xll/HjO9JbN
-# VekBv2Tgem+mLptR7yIrpaidRJXrI+UzB6vAlk/8a1u7cIqV0yef4uaZFORNekUg
-# QHTqddmsPCEIYQP7xGxZBIhdmm4bhYsVA6G2WgNFYagLDBzpmk9104WQzYuVNsxy
-# oVLObhx3RugaEGru+SojW4dHPoWrUhftNpFC5H7QEY7MhKRyrBe7ucykW7eaCuWB
-# sBb4HOKRFVDcrZgdwaSIqMDiCLg4D+TPVgKx2EgEdeoHNHT9l3ZDBD+XgbF+23/z
-# BjeCtxz+dL/9NWR6P2eZRi7zcEO1xwcdcqJsyz/JceENc2Sg8h3KeFUCS7tpFk7C
-# rDqkMIIGrjCCBJagAwIBAgIQBzY3tyRUfNhHrP0oZipeWzANBgkqhkiG9w0BAQsF
-# ADBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQL
-# ExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdpQ2VydCBUcnVzdGVkIFJv
-# b3QgRzQwHhcNMjIwMzIzMDAwMDAwWhcNMzcwMzIyMjM1OTU5WjBjMQswCQYDVQQG
-# EwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0
-# IFRydXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENBMIICIjAN
-# BgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxoY1BkmzwT1ySVFVxyUDxPKRN6mX
-# UaHW0oPRnkyibaCwzIP5WvYRoUQVQl+kiPNo+n3znIkLf50fng8zH1ATCyZzlm34
-# V6gCff1DtITaEfFzsbPuK4CEiiIY3+vaPcQXf6sZKz5C3GeO6lE98NZW1OcoLevT
-# sbV15x8GZY2UKdPZ7Gnf2ZCHRgB720RBidx8ald68Dd5n12sy+iEZLRS8nZH92GD
-# Gd1ftFQLIWhuNyG7QKxfst5Kfc71ORJn7w6lY2zkpsUdzTYNXNXmG6jBZHRAp8By
-# xbpOH7G1WE15/tePc5OsLDnipUjW8LAxE6lXKZYnLvWHpo9OdhVVJnCYJn+gGkcg
-# Q+NDY4B7dW4nJZCYOjgRs/b2nuY7W+yB3iIU2YIqx5K/oN7jPqJz+ucfWmyU8lKV
-# EStYdEAoq3NDzt9KoRxrOMUp88qqlnNCaJ+2RrOdOqPVA+C/8KI8ykLcGEh/FDTP
-# 0kyr75s9/g64ZCr6dSgkQe1CvwWcZklSUPRR8zZJTYsg0ixXNXkrqPNFYLwjjVj3
-# 3GHek/45wPmyMKVM1+mYSlg+0wOI/rOP015LdhJRk8mMDDtbiiKowSYI+RQQEgN9
-# XyO7ZONj4KbhPvbCdLI/Hgl27KtdRnXiYKNYCQEoAA6EVO7O6V3IXjASvUaetdN2
-# udIOa5kM0jO0zbECAwEAAaOCAV0wggFZMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYD
-# VR0OBBYEFLoW2W1NhS9zKXaaL3WMaiCPnshvMB8GA1UdIwQYMBaAFOzX44LScV1k
-# TN8uZz/nupiuHA9PMA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAKBggrBgEFBQcD
-# CDB3BggrBgEFBQcBAQRrMGkwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2lj
-# ZXJ0LmNvbTBBBggrBgEFBQcwAoY1aHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29t
-# L0RpZ2lDZXJ0VHJ1c3RlZFJvb3RHNC5jcnQwQwYDVR0fBDwwOjA4oDagNIYyaHR0
-# cDovL2NybDMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZFJvb3RHNC5jcmww
-# IAYDVR0gBBkwFzAIBgZngQwBBAIwCwYJYIZIAYb9bAcBMA0GCSqGSIb3DQEBCwUA
-# A4ICAQB9WY7Ak7ZvmKlEIgF+ZtbYIULhsBguEE0TzzBTzr8Y+8dQXeJLKftwig2q
-# KWn8acHPHQfpPmDI2AvlXFvXbYf6hCAlNDFnzbYSlm/EUExiHQwIgqgWvalWzxVz
-# jQEiJc6VaT9Hd/tydBTX/6tPiix6q4XNQ1/tYLaqT5Fmniye4Iqs5f2MvGQmh2yS
-# vZ180HAKfO+ovHVPulr3qRCyXen/KFSJ8NWKcXZl2szwcqMj+sAngkSumScbqyQe
-# JsG33irr9p6xeZmBo1aGqwpFyd/EjaDnmPv7pp1yr8THwcFqcdnGE4AJxLafzYeH
-# JLtPo0m5d2aR8XKc6UsCUqc3fpNTrDsdCEkPlM05et3/JWOZJyw9P2un8WbDQc1P
-# tkCbISFA0LcTJM3cHXg65J6t5TRxktcma+Q4c6umAU+9Pzt4rUyt+8SVe+0KXzM5
-# h0F4ejjpnOHdI/0dKNPH+ejxmF/7K9h+8kaddSweJywm228Vex4Ziza4k9Tm8heZ
-# Wcpw8De/mADfIBZPJ/tgZxahZrrdVcA6KYawmKAr7ZVBtzrVFZgxtGIJDwq9gdkT
-# /r+k0fNX2bwE+oLeMt8EifAAzV3C+dAjfwAL5HYCJtnwZXZCpimHCUcr5n8apIUP
-# /JiW9lVUKx+A+sDyDivl1vupL0QVSucTDh3bNzgaoSv27dZ8/DCCBY0wggR1oAMC
-# AQICEA6bGI750C3n79tQ4ghAGFowDQYJKoZIhvcNAQEMBQAwZTELMAkGA1UEBhMC
-# VVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0
-# LmNvbTEkMCIGA1UEAxMbRGlnaUNlcnQgQXNzdXJlZCBJRCBSb290IENBMB4XDTIy
-# MDgwMTAwMDAwMFoXDTMxMTEwOTIzNTk1OVowYjELMAkGA1UEBhMCVVMxFTATBgNV
-# BAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEhMB8G
-# A1UEAxMYRGlnaUNlcnQgVHJ1c3RlZCBSb290IEc0MIICIjANBgkqhkiG9w0BAQEF
-# AAOCAg8AMIICCgKCAgEAv+aQc2jeu+RdSjwwIjBpM+zCpyUuySE98orYWcLhKac9
-# WKt2ms2uexuEDcQwH/MbpDgW61bGl20dq7J58soR0uRf1gU8Ug9SH8aeFaV+vp+p
-# VxZZVXKvaJNwwrK6dZlqczKU0RBEEC7fgvMHhOZ0O21x4i0MG+4g1ckgHWMpLc7s
-# Xk7Ik/ghYZs06wXGXuxbGrzryc/NrDRAX7F6Zu53yEioZldXn1RYjgwrt0+nMNlW
-# 7sp7XeOtyU9e5TXnMcvak17cjo+A2raRmECQecN4x7axxLVqGDgDEI3Y1DekLgV9
-# iPWCPhCRcKtVgkEy19sEcypukQF8IUzUvK4bA3VdeGbZOjFEmjNAvwjXWkmkwuap
-# oGfdpCe8oU85tRFYF/ckXEaPZPfBaYh2mHY9WV1CdoeJl2l6SPDgohIbZpp0yt5L
-# HucOY67m1O+SkjqePdwA5EUlibaaRBkrfsCUtNJhbesz2cXfSwQAzH0clcOP9yGy
-# shG3u3/y1YxwLEFgqrFjGESVGnZifvaAsPvoZKYz0YkH4b235kOkGLimdwHhD5QM
-# IR2yVCkliWzlDlJRR3S+Jqy2QXXeeqxfjT/JvNNBERJb5RBQ6zHFynIWIgnffEx1
-# P2PsIV/EIFFrb7GrhotPwtZFX50g/KEexcCPorF+CiaZ9eRpL5gdLfXZqbId5RsC
-# AwEAAaOCATowggE2MA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFOzX44LScV1k
-# TN8uZz/nupiuHA9PMB8GA1UdIwQYMBaAFEXroq/0ksuCMS1Ri6enIZ3zbcgPMA4G
-# A1UdDwEB/wQEAwIBhjB5BggrBgEFBQcBAQRtMGswJAYIKwYBBQUHMAGGGGh0dHA6
-# Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBDBggrBgEFBQcwAoY3aHR0cDovL2NhY2VydHMu
-# ZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNydDBFBgNVHR8E
-# PjA8MDqgOKA2hjRodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRBc3N1
-# cmVkSURSb290Q0EuY3JsMBEGA1UdIAQKMAgwBgYEVR0gADANBgkqhkiG9w0BAQwF
-# AAOCAQEAcKC/Q1xV5zhfoKN0Gz22Ftf3v1cHvZqsoYcs7IVeqRq7IviHGmlUIu2k
-# iHdtvRoU9BNKei8ttzjv9P+Aufih9/Jy3iS8UgPITtAq3votVs/59PesMHqai7Je
-# 1M/RQ0SbQyHrlnKhSLSZy51PpwYDE3cnRNTnf+hZqPC/Lwum6fI0POz3A8eHqNJM
-# QBk1RmppVLC4oVaO7KTVPeix3P0c2PR3WlxUjG/voVA9/HYJaISfb8rbII01YBwC
-# A8sgsKxYoA5AY8WYIsGyWfVVa88nq2x2zm8jLfR+cWojayL/ErhULSd+2DrZ8LaH
-# lv1b0VysGMNNn3O3AamfV6peKOK5lDGCA4YwggOCAgEBMHcwYzELMAkGA1UEBhMC
-# VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
-# cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
-# f5WHxvnpBOMzBDANBglghkgBZQMEAgIFAKCB4TAaBgkqhkiG9w0BCQMxDQYLKoZI
-# hvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI0MTIxMTAzMDczOVowKwYLKoZIhvcN
-# AQkQAgwxHDAaMBgwFgQU29OF7mLb0j575PZxSFCHJNWGW0UwNwYLKoZIhvcNAQkQ
-# Ai8xKDAmMCQwIgQgdnafqPJjLx9DCzojMK7WVnX+13PbBdZluQWTmEOPmtswPwYJ
-# KoZIhvcNAQkEMTIEMElbv9FGaZtephYSNvryCFHFIYBwLZY6JIGo5/wxnwV04UBY
-# RHHsBJDTJrqp6wu29TANBgkqhkiG9w0BAQEFAASCAgACzN5kc8yYOKYe5np2oI2Q
-# NmA/I3fPHTrzaAPwPDG3UOnt4VYuoNanhPq9zwQbfFKznasgqJTEt0xJvRdNChNP
-# 5GsgimTsJfQPi5KXGlsETubfuOA4hcj60pYILlrCmWOLsLphZZjNT+3ScpOIxfjE
-# k54Won90o4Apky5J1DRBUJ5z8ZanFQ+LSgw2VgtJF7nOmLJBAdx1T9CT1WIfulyn
-# x7+5pE9khR/vrwXGMUOC1KIErChm1QhIZshzL+Gqfh3cEbzBeCrs+Rmxw5Fp451v
-# +GB9a13Eqyk8hLjjDUX9lcdsejntQ2WIeuwLapEcUP790FItn9yq3kSjKlu7jwEh
-# RjOO9g3qS2CcgFl+MqgcLzO7c53Nq0bHKHFsj/MfgECRfJ/nRbkM5R0EDQh1przT
-# zFo/AWGJy20uGMoikdBUFL7wX619ruewmiTQ9yZnAtPS5MKZFz8g8CiL8xR3ywak
-# W0I1bqFH73trm7z4khE0nFfjo8MKs8D4RVrDwUk6J3iAFkwbnmaBJce+XJ7eyEwE
-# jc8kmoOlV2a5/MT6s0yUAVcJDvqrXg2ueCL4SUQry4yjzsSozG7EKAjlbiX2qYp1
-# Hf3YWIUFJRhBDF6HjTc2zyF8Z7yd30nk6KQ/qTO4AtPx35TT4k0UDbkp7Gq2edUU
-# /civolHIKFqsAnEt9Fcj6w==
+# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIA9g
+# E1EjF8LuPDDOU2wcmLP8FjszjeYMdwJRCLc0fWU3MA0GCSqGSIb3DQEBAQUABIIC
+# AEr78LgyuIF2WI7OCvxcLdnykMcgSUGUJedLTKq4FekdRTASCBGQYtIScGUFFZDk
+# i10ZvxFkNJHUgJoh51roclYUtTTRFTj7R8HpvsyDUbUces5QTqGjwo6bVjyOqbAo
+# P4xdNjJTYtvyMc++QbyK/G1usD5eglXSCb1PXXZ/zoERdOjGsTA1B8l8xCy8k/GN
+# U2ZHqwy6ZDRFcJ2+kZP3UBImBD6q1SQ7SqOP6xPeBg4J7p4oPOHYKErTYQ1cBw/c
+# 4GlOS66+Uz9j9+2Kxq0bAc8sEgXzBaNGrAitZ05qPlBsjGgaRc178p4yG2lP9oAC
+# KtMu3kRRXl3byMTyvw2XnXJvS8XweMllXMqodzGii0CpnWQmeGOM2wHKfJADuLzh
+# xKUReLL5xa3krGc/o7InJjYtJ+wwecOCy5atHsRlxwi9AFse/NaSSAky63V2O6uU
+# zHR7ouaF6l4zzw8tNGbLtbQgwgmaQphnz7ge3LAU4wDm+9uPeMCyQVF+tg6aE56N
+# FntgVYaopzSz8SXVOdTyM9erIpF95oPcYpktA7Zv5LksiPmrLDBW2BMeSKKJncDG
+# +gAtC7rDPGGV2Cjhys7bqeSg6dC1Rqnu8HS2OxD4P29A3NDx55mf2Gb0RPYeEUEL
+# xUnNZiba7Yi5MkL3C16CURejuUCj7ti6A7+Xsv5Av0OqoYIXWjCCF1YGCisGAQQB
+# gjcDAwExghdGMIIXQgYJKoZIhvcNAQcCoIIXMzCCFy8CAQMxDzANBglghkgBZQME
+# AgIFADCBhwYLKoZIhvcNAQkQAQSgeAR2MHQCAQEGCWCGSAGG/WwHATBBMA0GCWCG
+# SAFlAwQCAgUABDASmvSdYcKaqprQD2jlxPmIocWTqu/VRmvOxzVvzQy+g7uKN1zt
+# abLoqBLDhgZTetwCEFAzx3q+BhAt0GqPoFDG+0gYDzIwMjQxMjExMTAwNjUxWqCC
+# EwMwgga8MIIEpKADAgECAhALrma8Wrp/lYfG+ekE4zMEMA0GCSqGSIb3DQEBCwUA
+# MGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UE
+# AxMyRGlnaUNlcnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBp
+# bmcgQ0EwHhcNMjQwOTI2MDAwMDAwWhcNMzUxMTI1MjM1OTU5WjBCMQswCQYDVQQG
+# EwJVUzERMA8GA1UEChMIRGlnaUNlcnQxIDAeBgNVBAMTF0RpZ2lDZXJ0IFRpbWVz
+# dGFtcCAyMDI0MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvmpzn/aV
+# IauWMLpbbeZZo7Xo/ZEfGMSIO2qZ46XB/QowIEMSvgjEdEZ3v4vrrTHleW1JWGEr
+# rjOL0J4L0HqVR1czSzvUQ5xF7z4IQmn7dHY7yijvoQ7ujm0u6yXF2v1CrzZopykD
+# 07/9fpAT4BxpT9vJoJqAsP8YuhRvflJ9YeHjes4fduksTHulntq9WelRWY++TFPx
+# zZrbILRYynyEy7rS1lHQKFpXvo2GePfsMRhNf1F41nyEg5h7iOXv+vjX0K8RhUis
+# fqw3TTLHj1uhS66YX2LZPxS4oaf33rp9HlfqSBePejlYeEdU740GKQM7SaVSH3Tb
+# BL8R6HwX9QVpGnXPlKdE4fBIn5BBFnV+KwPxRNUNK6lYk2y1WSKour4hJN0SMkoa
+# NV8hyyADiX1xuTxKaXN12HgR+8WulU2d6zhzXomJ2PleI9V2yfmfXSPGYanGgxzq
+# I+ShoOGLomMd3mJt92nm7Mheng/TBeSA2z4I78JpwGpTRHiT7yHqBiV2ngUIyCtd
+# 0pZ8zg3S7bk4QC4RrcnKJ3FbjyPAGogmoiZ33c1HG93Vp6lJ415ERcC7bFQMRbxq
+# rMVANiav1k425zYyFMyLNyE1QulQSgDpW9rtvVcIH7WvG9sqYup9j8z9J1XqbBZP
+# J5XLln8mS8wWmdDLnBHXgYly/p1DhoQo5fkCAwEAAaOCAYswggGHMA4GA1UdDwEB
+# /wQEAwIHgDAMBgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMIMCAG
+# A1UdIAQZMBcwCAYGZ4EMAQQCMAsGCWCGSAGG/WwHATAfBgNVHSMEGDAWgBS6Ftlt
+# TYUvcyl2mi91jGogj57IbzAdBgNVHQ4EFgQUn1csA3cOKBWQZqVjXu5Pkh92oFsw
+# WgYDVR0fBFMwUTBPoE2gS4ZJaHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0RpZ2lD
+# ZXJ0VHJ1c3RlZEc0UlNBNDA5NlNIQTI1NlRpbWVTdGFtcGluZ0NBLmNybDCBkAYI
+# KwYBBQUHAQEEgYMwgYAwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0
+# LmNvbTBYBggrBgEFBQcwAoZMaHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29tL0Rp
+# Z2lDZXJ0VHJ1c3RlZEc0UlNBNDA5NlNIQTI1NlRpbWVTdGFtcGluZ0NBLmNydDAN
+# BgkqhkiG9w0BAQsFAAOCAgEAPa0eH3aZW+M4hBJH2UOR9hHbm04IHdEoT8/T3HuB
+# SyZeq3jSi5GXeWP7xCKhVireKCnCs+8GZl2uVYFvQe+pPTScVJeCZSsMo1JCoZN2
+# mMew/L4tpqVNbSpWO9QGFwfMEy60HofN6V51sMLMXNTLfhVqs+e8haupWiArSozy
+# AmGH/6oMQAh078qRh6wvJNU6gnh5OruCP1QUAvVSu4kqVOcJVozZR5RRb/zPd++P
+# GE3qF1P3xWvYViUJLsxtvge/mzA75oBfFZSbdakHJe2BVDGIGVNVjOp8sNt70+kE
+# oMF+T6tptMUNlehSR7vM+C13v9+9ZOUKzfRUAYSyyEmYtsnpltD/GWX8eM70ls1V
+# 6QG/ZOB6b6Yum1HvIiulqJ1Elesj5TMHq8CWT/xrW7twipXTJ5/i5pkU5E16RSBA
+# dOp12aw8IQhhA/vEbFkEiF2abhuFixUDobZaA0VhqAsMHOmaT3XThZDNi5U2zHKh
+# Us5uHHdG6BoQau75KiNbh0c+hatSF+02kULkftARjsyEpHKsF7u5zKRbt5oK5YGw
+# Fvgc4pEVUNytmB3BpIiowOIIuDgP5M9WArHYSAR16gc0dP2XdkMEP5eBsX7bf/MG
+# N4K3HP50v/01ZHo/Z5lGLvNwQ7XHBx1yomzLP8lx4Q1zZKDyHcp4VQJLu2kWTsKs
+# OqQwggauMIIElqADAgECAhAHNje3JFR82Ees/ShmKl5bMA0GCSqGSIb3DQEBCwUA
+# MGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsT
+# EHd3dy5kaWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9v
+# dCBHNDAeFw0yMjAzMjMwMDAwMDBaFw0zNzAzMjIyMzU5NTlaMGMxCzAJBgNVBAYT
+# AlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UEAxMyRGlnaUNlcnQg
+# VHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBpbmcgQ0EwggIiMA0G
+# CSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDGhjUGSbPBPXJJUVXHJQPE8pE3qZdR
+# odbSg9GeTKJtoLDMg/la9hGhRBVCX6SI82j6ffOciQt/nR+eDzMfUBMLJnOWbfhX
+# qAJ9/UO0hNoR8XOxs+4rgISKIhjf69o9xBd/qxkrPkLcZ47qUT3w1lbU5ygt69Ox
+# tXXnHwZljZQp09nsad/ZkIdGAHvbREGJ3HxqV3rwN3mfXazL6IRktFLydkf3YYMZ
+# 3V+0VAshaG43IbtArF+y3kp9zvU5EmfvDqVjbOSmxR3NNg1c1eYbqMFkdECnwHLF
+# uk4fsbVYTXn+149zk6wsOeKlSNbwsDETqVcplicu9Yemj052FVUmcJgmf6AaRyBD
+# 40NjgHt1biclkJg6OBGz9vae5jtb7IHeIhTZgirHkr+g3uM+onP65x9abJTyUpUR
+# K1h0QCirc0PO30qhHGs4xSnzyqqWc0Jon7ZGs506o9UD4L/wojzKQtwYSH8UNM/S
+# TKvvmz3+DrhkKvp1KCRB7UK/BZxmSVJQ9FHzNklNiyDSLFc1eSuo80VgvCONWPfc
+# Yd6T/jnA+bIwpUzX6ZhKWD7TA4j+s4/TXkt2ElGTyYwMO1uKIqjBJgj5FBASA31f
+# I7tk42PgpuE+9sJ0sj8eCXbsq11GdeJgo1gJASgADoRU7s7pXcheMBK9Rp6103a5
+# 0g5rmQzSM7TNsQIDAQABo4IBXTCCAVkwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNV
+# HQ4EFgQUuhbZbU2FL3MpdpovdYxqII+eyG8wHwYDVR0jBBgwFoAU7NfjgtJxXWRM
+# 3y5nP+e6mK4cD08wDgYDVR0PAQH/BAQDAgGGMBMGA1UdJQQMMAoGCCsGAQUFBwMI
+# MHcGCCsGAQUFBwEBBGswaTAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNl
+# cnQuY29tMEEGCCsGAQUFBzAChjVodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20v
+# RGlnaUNlcnRUcnVzdGVkUm9vdEc0LmNydDBDBgNVHR8EPDA6MDigNqA0hjJodHRw
+# Oi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkUm9vdEc0LmNybDAg
+# BgNVHSAEGTAXMAgGBmeBDAEEAjALBglghkgBhv1sBwEwDQYJKoZIhvcNAQELBQAD
+# ggIBAH1ZjsCTtm+YqUQiAX5m1tghQuGwGC4QTRPPMFPOvxj7x1Bd4ksp+3CKDaop
+# afxpwc8dB+k+YMjYC+VcW9dth/qEICU0MWfNthKWb8RQTGIdDAiCqBa9qVbPFXON
+# ASIlzpVpP0d3+3J0FNf/q0+KLHqrhc1DX+1gtqpPkWaeLJ7giqzl/Yy8ZCaHbJK9
+# nXzQcAp876i8dU+6WvepELJd6f8oVInw1YpxdmXazPByoyP6wCeCRK6ZJxurJB4m
+# wbfeKuv2nrF5mYGjVoarCkXJ38SNoOeY+/umnXKvxMfBwWpx2cYTgAnEtp/Nh4ck
+# u0+jSbl3ZpHxcpzpSwJSpzd+k1OsOx0ISQ+UzTl63f8lY5knLD0/a6fxZsNBzU+2
+# QJshIUDQtxMkzdwdeDrknq3lNHGS1yZr5Dhzq6YBT70/O3itTK37xJV77QpfMzmH
+# QXh6OOmc4d0j/R0o08f56PGYX/sr2H7yRp11LB4nLCbbbxV7HhmLNriT1ObyF5lZ
+# ynDwN7+YAN8gFk8n+2BnFqFmut1VwDophrCYoCvtlUG3OtUVmDG0YgkPCr2B2RP+
+# v6TR81fZvAT6gt4y3wSJ8ADNXcL50CN/AAvkdgIm2fBldkKmKYcJRyvmfxqkhQ/8
+# mJb2VVQrH4D6wPIOK+XW+6kvRBVK5xMOHds3OBqhK/bt1nz8MIIFjTCCBHWgAwIB
+# AgIQDpsYjvnQLefv21DiCEAYWjANBgkqhkiG9w0BAQwFADBlMQswCQYDVQQGEwJV
+# UzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQu
+# Y29tMSQwIgYDVQQDExtEaWdpQ2VydCBBc3N1cmVkIElEIFJvb3QgQ0EwHhcNMjIw
+# ODAxMDAwMDAwWhcNMzExMTA5MjM1OTU5WjBiMQswCQYDVQQGEwJVUzEVMBMGA1UE
+# ChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYD
+# VQQDExhEaWdpQ2VydCBUcnVzdGVkIFJvb3QgRzQwggIiMA0GCSqGSIb3DQEBAQUA
+# A4ICDwAwggIKAoICAQC/5pBzaN675F1KPDAiMGkz7MKnJS7JIT3yithZwuEppz1Y
+# q3aaza57G4QNxDAf8xukOBbrVsaXbR2rsnnyyhHS5F/WBTxSD1Ifxp4VpX6+n6lX
+# FllVcq9ok3DCsrp1mWpzMpTREEQQLt+C8weE5nQ7bXHiLQwb7iDVySAdYyktzuxe
+# TsiT+CFhmzTrBcZe7FsavOvJz82sNEBfsXpm7nfISKhmV1efVFiODCu3T6cw2Vbu
+# yntd463JT17lNecxy9qTXtyOj4DatpGYQJB5w3jHtrHEtWoYOAMQjdjUN6QuBX2I
+# 9YI+EJFwq1WCQTLX2wRzKm6RAXwhTNS8rhsDdV14Ztk6MUSaM0C/CNdaSaTC5qmg
+# Z92kJ7yhTzm1EVgX9yRcRo9k98FpiHaYdj1ZXUJ2h4mXaXpI8OCiEhtmmnTK3kse
+# 5w5jrubU75KSOp493ADkRSWJtppEGSt+wJS00mFt6zPZxd9LBADMfRyVw4/3IbKy
+# Ebe7f/LVjHAsQWCqsWMYRJUadmJ+9oCw++hkpjPRiQfhvbfmQ6QYuKZ3AeEPlAwh
+# HbJUKSWJbOUOUlFHdL4mrLZBdd56rF+NP8m800ERElvlEFDrMcXKchYiCd98THU/
+# Y+whX8QgUWtvsauGi0/C1kVfnSD8oR7FwI+isX4KJpn15GkvmB0t9dmpsh3lGwID
+# AQABo4IBOjCCATYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU7NfjgtJxXWRM
+# 3y5nP+e6mK4cD08wHwYDVR0jBBgwFoAUReuir/SSy4IxLVGLp6chnfNtyA8wDgYD
+# VR0PAQH/BAQDAgGGMHkGCCsGAQUFBwEBBG0wazAkBggrBgEFBQcwAYYYaHR0cDov
+# L29jc3AuZGlnaWNlcnQuY29tMEMGCCsGAQUFBzAChjdodHRwOi8vY2FjZXJ0cy5k
+# aWdpY2VydC5jb20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3J0MEUGA1UdHwQ+
+# MDwwOqA4oDaGNGh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3Vy
+# ZWRJRFJvb3RDQS5jcmwwEQYDVR0gBAowCDAGBgRVHSAAMA0GCSqGSIb3DQEBDAUA
+# A4IBAQBwoL9DXFXnOF+go3QbPbYW1/e/Vwe9mqyhhyzshV6pGrsi+IcaaVQi7aSI
+# d229GhT0E0p6Ly23OO/0/4C5+KH38nLeJLxSA8hO0Cre+i1Wz/n096wwepqLsl7U
+# z9FDRJtDIeuWcqFItJnLnU+nBgMTdydE1Od/6Fmo8L8vC6bp8jQ87PcDx4eo0kxA
+# GTVGamlUsLihVo7spNU96LHc/RzY9HdaXFSMb++hUD38dglohJ9vytsgjTVgHAID
+# yyCwrFigDkBjxZgiwbJZ9VVrzyerbHbObyMt9H5xaiNrIv8SuFQtJ37YOtnwtoeW
+# /VvRXKwYw02fc7cBqZ9Xql4o4rmUMYIDhjCCA4ICAQEwdzBjMQswCQYDVQQGEwJV
+# UzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRy
+# dXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENBAhALrma8Wrp/
+# lYfG+ekE4zMEMA0GCWCGSAFlAwQCAgUAoIHhMBoGCSqGSIb3DQEJAzENBgsqhkiG
+# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMTAwNjUxWjArBgsqhkiG9w0B
+# CRACDDEcMBowGDAWBBTb04XuYtvSPnvk9nFIUIck1YZbRTA3BgsqhkiG9w0BCRAC
+# LzEoMCYwJDAiBCB2dp+o8mMvH0MLOiMwrtZWdf7Xc9sF1mW5BZOYQ4+a2zA/Bgkq
+# hkiG9w0BCQQxMgQwLHNLfNqvBVbusOnLbply19Jb6qsag4VIpSSSSTyhCRM6E08H
+# tPf/cUvDPzvzeUrgMA0GCSqGSIb3DQEBAQUABIICABIsblKRh5XqUtDTmvNOU34j
+# ik45OHL32yECivgL7SO3V5v4m7XzIYv+xXxMRazD8Chl1P1HPDPIXfEWOXmyjT/L
+# xB5Lm0e3VVcUHPPviUyHVCc/ueQMps90MfvvhjpHAt0S8WfNMEWUB09FHPYpvE2A
+# li6qCjGexvzj0+p5TnosJGxXDOA3JEcFJTB60S+6jac0S6IH9EnyOCCDZ7bQHZf7
+# q6q9yDuFWfXio/e4B5kK6IJmSVBT1V8YlY4OQ0CSXgpYlc3uzNVXDVYFxlJjIh//
+# 3EzEPj0WrBP4UmdwBrVfiSU9+JBi3c/HMmUZF9cmG9VBZMxNWA4kMaYN2TUh2F23
+# /hXdO2qImTNlSTWVmkdbOZQmbO5GSvd+H+fS4DFnz1ZFYQz4z7Dy2k9ohrC2G5Kt
+# bV5DQ77ErnqiCijN6I0JzkDqHD6V+Ul/8vVSAGjshHKslAZ9+Mrbz8G0D3dd51zF
+# COjews2a+RaNjUAE0jqp5yb4oapB+uUQGngnoMey+5FqRl9CA4bXZvg4BYhWiwql
+# FYry1heABmecZ1Rv/RekEO+6wVzBeF+6obYhCAZaFJ9TsRfDlCdndF4usItCD5Vf
+# ESjPtmzRsl5EFUVYK6NmaDgXXrS2grQi9JEPaxfdtgsSOwye5enMQM+7r1jjhzpn
+# Y4rU8ZEPuhbIk30rWqy2
 # SIG # End signature block

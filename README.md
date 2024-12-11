@@ -1,75 +1,66 @@
-# Easy-GPU-PV
-A work-in-progress project dedicated to making GPU Paravirtualization on Windows Hyper-V easier!  
+# Hyper-V GPU Virtualization Manage Tool
 
-GPU-PV allows you to partition your systems dedicated or integrated GPU and assign it to several Hyper-V VMs.  It's the same technology that is used in WSL2, and Windows Sandbox.  
+# Hyper-V GPU虚拟化和DDA管理工具
 
-Easy-GPU-PV aims to make this easier by automating the steps required to get a GPU-PV VM up and running.  
-Easy-GPU-PV does the following...  
-1) Creates a VM of your choosing
-2) Automatically Installs Windows to the VM
-3) Partitions your GPU of choice and copies the required driver files to the VM  
-4) Installs [Parsec](https://parsec.app) to the VM, Parsec is an ultra low latency remote desktop app, use this to connect to the VM.  You can use Parsec for free non commercially. To use Parsec commercially, sign up to a [Parsec For Teams](https://parsec.app/teams) account  
+致力于简化 Windows Hyper-V 上的 GPU 半虚拟化！
 
-### Prerequisites:
-* Windows 10 20H1+ Pro, Enterprise or Education OR Windows 11 Pro, Enterprise or Education.  Windows 11 on host and VM is preferred due to better compatibility.  
-* Matched Windows versions between the host and VM. Mismatches may cause compatibility issues, blue-screens, or other issues. (Win10 21H1 + Win10 21H1, or Win11 21H2 + Win11 21H2, for example)  
-* Desktop Computer with dedicated NVIDIA/AMD GPU or Integrated Intel GPU - Laptops with NVIDIA GPUs are not supported at this time, but Intel integrated GPUs work on laptops.  GPU must support hardware video encoding (NVIDIA NVENC, Intel Quicksync or AMD AMF).  
-* Latest GPU driver from Intel.com or NVIDIA.com, don't rely on Device manager or Windows update.  
-* Latest Windows 10 ISO [downloaded from here](https://www.microsoft.com/en-gb/software-download/windows10ISO) / Windows 11 ISO [downloaded from here.](https://www.microsoft.com/en-us/software-download/windows11) - Do not use Media Creation Tool, if no direct ISO link is available, follow [this guide.](https://www.nextofwindows.com/downloading-windows-10-iso-images-using-rufus)
-* Virtualisation enabled in the motherboard and [Hyper-V fully enabled](https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/quick-start/enable-hyper-v) on the Windows 10/ 11 OS (requires reboot).  
-* Allow Powershell scripts to run on your system - typically by running "Set-ExecutionPolicy unrestricted" in Powershell running as Administrator.  
+![QQ20241211-201112](Picture/QQ20241211-201112.png)
 
-### Instructions
-1. Make sure your system meets the prerequisites.
-2. [Download the Repo and extract.](https://github.com/jamesstringerparsec/Easy-GPU-PV/archive/refs/heads/main.zip)
-3. Search your system for Powershell ISE and run as Administrator.
-4. In the extracted folder you downloaded, open PreChecks.ps1 in Powershell ISE.  Run the files from within the extracted folder. Do not move them.
-5. Open and Run PreChecks.ps1 in Powershell ISE using the green play button and copy the GPU Listed (or the warnings that you need to fix).
-6. Open CopyFilesToVM.ps1 Powershell ISE and edit the params section at the top of the file, you need to be careful about how much ram, storage and hard drive you give it as your system needs to have that available.  On Windows 10 the GPUName must be left as "AUTO", In Windows 11 it can be either "AUTO" or the specific name of the GPU you want to partition exactly how it appears in PreChecks.ps1.  Additionally, you need to provide the path to the Windows 10/11 ISO file you downloaded.
-7. Run CopyFilesToVM.ps1 with your changes to the params section - this may take 5-10 minutes.
-8. Open and sign into Parsec on the VM.  You can use Parsec to connect to the VM up to 4K60FPS.
-9. You should be good to go!
+### 使用条件 / Prerequisites:
 
-### Upgrading GPU Drivers when you update the host GPU Drivers
-It's important to update the VM GPU Drivers after you have updated the Host GPUs drivers. You can do this by...  
-1. Reboot the host after updating GPU Drivers.  
-2. Open Powershell as administrator and change directory (CD) to the path that CopyFilesToVM.ps1 and Update-VMGpuPartitionDriver.ps1 are located. 
-3. Run ```Update-VMGpuPartitionDriver.ps1 -VMName "Name of your VM" -GPUName "Name of your GPU"```    (Windows 10 GPU name must be "AUTO")
-
-### Values
-  ```VMName = "GPUP"``` - Name of VM in Hyper-V and the computername / hostname  
-  ```SourcePath = "C:\Users\james\Downloads\Win11_English_x64.iso"``` - path to Windows 10/ 11 ISO on your host   
-  ```Edition    = 6``` - Leave as 6, this means Windows 10/11 Pro  
-  ```VhdFormat  = "VHDX"``` - Leave this value alone  
-  ```DiskLayout = "UEFI"``` - Leave this value alone  
-  ```SizeBytes  = 40gb``` - Disk size, in this case 40GB, the minimum is 20GB  
-  ```MemoryAmount = 8GB``` - Memory size, in this case 8GB  
-  ```CPUCores = 4``` - CPU Cores you want to give VM, in this case 4   
-  ```NetworkSwitch = "Default Switch"``` - Leave this alone unless you're not using the default Hyper-V Switch  
-  ```VHDPath = "C:\Users\Public\Documents\Hyper-V\Virtual Hard Disks\"``` - Path to the folder you want the VM Disk to be stored in, it must already exist  
-  ```UnattendPath = "$PSScriptRoot"+"\Configs\autounattend.xml"``` -Leave this value alone  
-  ```GPUName = "AUTO"``` - AUTO selects the first available GPU. On Windows 11 you may also use the exact name of the GPU you want to share with the VM in multi GPU situations (GPU selection is not available in Windows 10 and must be set to AUTO)    
-  ```GPUResourceAllocationPercentage = 50``` - Percentage of the GPU you want to share with the VM   
-  ```Team_ID = ""``` - The Parsec for Teams ID if you are a Parsec for Teams Subscriber  
-  ```Key = ""``` - The Parsec for Teams Secret Key if you are a Parsec for Teams Subscriber  
-  ```Username = "GPUVM"``` - The VM Windows Username, do not include special characters, and must be different from the "VMName" value you set  
-  ```Password = "CoolestPassword!"``` - The VM Windows Password, cannot be blank    
-  ```Autologon = "true"```- If you want the VM to automatically login to the Windows Desktop
+| 类型 / Item          | 主机要求 / Host                                              | 虚拟机要求 / VM                                              |
+| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 系统版本 / OSVersion | Windows 10 20H1+ Pro/Enterprise/Education（GPU-PV Only!）<br>Windows 11 22h1+ Pro/Enterprise/Education（GPU-PV Only!）<br/>Windows Server 2016~2025 Stand/DataCenter（GPU-PV & DDA）<br> | 虚拟机系统与主机系统尽量保持一致<br/>Matched Windows versions between the host and VM.<br/>(Win10 21H1 + Win10 21H1,<br/>or Win11 21H2 + Win11 21H2) |
+| 硬件支持 / Hardwares | GPU-PV：Dedicated NVIDIA/AMD GPU（N/AMD独显）<br/>GPU-PV：Integrated Intel Graphic（Intel核显）<br/>DDA ：All PCIe Devices with PNPM（PCI都支持）<br/> | /                                                            |
+| 软件要求 / Softwares | VT-x/VT-d on BIOS is Enable（开启VT-x和VT-d）<br/>Hyper-V Function is Enable（开启Hyper-V功能）<br/>SecureDeviceAssignment Off（关闭SDA安全分配）<br/> | /                                                            |
 
 
-### Thanks to:  
-- [Hyper-ConvertImage](https://github.com/tabs-not-spaces/Hyper-ConvertImage) for creating an updated version of [Convert-WindowsImage](https://github.com/MicrosoftDocs/Virtualization-Documentation/tree/master/hyperv-tools/Convert-WindowsImage) that is compatible with Windows 10 and 11.
-- [gawainXX](https://github.com/gawainXX) for help testing and pointing out bugs and feature improvements.  
+
+### 使用方法 / Instructions
+
+1. 确保您的系统和硬件满足上述要求，下载[最新虚拟化工具](https://github.com/PIKACHUIM/HyperVGPUApp/releases)，解压后打开
+2. 下载一个和**你系统对应的系统镜像**，建议[下载微软官方Windows 10](https://www.microsoft.com/zh-cn/software-download/windows10)或[11](https://www.microsoft.com/zh-cn/software-download/windows11)
+3. 启用Hyper-V功能，打开软件，设置您的显卡、镜像路径和安装所需参数
+4. 创建将自动完成并启动虚拟机，您可直接通过管理工具或远程软件访问！
+
+1. Ensure that your system and hardware meet the above requirements and download the [latest virtualization tools](https://github.com/PIKACHUIM/HyperVGPUApp/releases)
+2. Download a system image that corresponds to your system. It is recommended to download [Windows 10](https://www.microsoft.com/zh-cn/software-download/windows10) Or [Windows 11](https://www.microsoft.com/zh-cn/software-download/windows11)
+3. Enable the Hyper-V feature, open the software, set your graphics card, image path, and installation parameters
+4. The creation will automatically complete and start the virtual machine.
+5. You can access directly through management tools or remote software!
+
+### 已知问题 / Known Issues
+
+- AMD Polaris等独立显卡和部分核显对半虚拟化支持不够友好，暂不支持使用GPU-PV，只能使用DDA分配
+- Parsec/Moonlight 等串流软件需要虚拟显示器驱动才能亮屏，否则屏幕黑屏。当然，可以使用远程桌面
+- 如果不使用本工具创建系统，先手动创建再分配，任务管理器看不到GPU使用情况，因此不推荐这种方法
+- AMD Polaris and other independent graphics cards, as well as some core displays, are not friendly enough for semi virtualization support. GPU-PV is not currently supported and can only be allocated using DDA
+- Streaming software such as Parsec/Moonlight require a virtual display driver to turn on the screen, otherwise the screen will turn black. Of course, remote desktop can be used
+- If you do not use this tool to create a system, manually create a reallocation first. The task manager cannot see the GPU usage, so this method is not recommended
+
+### 注意事项 / Notes:
+
+- 如果使用Parsec，就不要使用Microsft Hyper-V GPU和远程桌面，否则大概率出现黑屏
+- Vulkan 渲染器不可用，OpenGL 大部分情况能用，也有的不能用，GPU-Z看不到PV的显卡
+- 要使用 Rufus 下载 Windows ISO，它必须启用“检查更新”功能，推荐直接从微软官方下载
+- 任务管理器可能看不到GPU信息（已知问题#3），只要在设备管理器中没有报错，就能用
+- GPU 将在设备管理器中具有 Microsoft 驱动程序，而不是 nvidia/intel/amd 驱动程序
+-  UAC 提示、进入和退出全屏以及在 Parsec 中切换视频编解码器时，可能黑屏长达10秒
+- 首次安装会重启若干次，可能会在安装动程序之前进入登录屏幕，然后驱动会在后台安装
+
+- If using Parsec, do not use Microsft Hyper-V GPU and Remote Desktop, otherwise black screens are likely to appear
+- Vulkan renderer not available, OpenGL mostly works, but some may not, GPU-Z cannot see PV graphics card
+- To download Windows ISO using Rufus, it is necessary to enable the 'Check for Updates' feature, and it is recommended to download it directly from Microsoft's official website
+- The task manager may not be able to see GPU information (known issue # 3), as long as there are no errors reported in the device manager, it can be used
+- GPU will have Microsoft drivers in Device Manager instead of Nvidia/Intel/AMD drivers
+- UAC prompts, entering and exiting full screen, and switching video codecs in Parsec may result in black screen for up to 10 seconds
+- The first installation will restart several times and may enter the login screen before installing the software, and then the driver will be installed in the background
 
 
-### Notes:    
-- After you have signed into Parsec on the VM, always use Parsec to connect to the VM.  Keep the Microsft Hyper-V Video adapter disabled. Using RDP and Hyper-V Enhanced Session mode will result in broken behaviour and black screens in Parsec.  RDP and the Hyper-V video adapter only offer a maximum of 30FPS. Using Parsec will allow you to use up to 4k60 FPS.
-- If you get "ERROR  : Cannot bind argument to parameter 'Path' because it is null." this probably means you used Media Creation Tool to download the ISO.  You unfortunately cannot use that, if you don't see a direct ISO download link at the Microsoft page, follow [this guide.](https://www.nextofwindows.com/downloading-windows-10-iso-images-using-rufus)  
-- Your GPU on the host will have a Microsoft driver in device manager, rather than an nvidia/intel/amd driver. As long as it doesn't have a yellow triangle over top of the device in device manager, it's working correctly.  
-- A powered on display / HDMI dummy dongle must be plugged into the GPU to allow Parsec to capture the screen.  You only need one of these per host machine regardless of number of VM's.
-- If your computer is super fast it may get to the login screen before the audio driver (VB Cable) and Parsec display driver are installed, but fear not! They should soon install.  
-- The screen may go black for times up to 10 seconds in situations when UAC prompts appear, applications go in and out of fullscreen and when you switch between video codecs in Parsec - not really sure why this happens, it's unique to GPU-P machines and seems to recover faster at 1280x720.
-- Vulkan renderer is unavailable and GL games may or may not work.  [This](https://www.microsoft.com/en-us/p/opencl-and-opengl-compatibility-pack/9nqpsl29bfff?SilentAuth=1&wa=wsignin1.0#activetab=pivot:overviewtab) may help with some OpenGL apps.  
-- If you do not have administrator permissions on the machine it means you set the username and vmname to the same thing, these needs to be different.  
-- AMD Polaris GPUS like the RX 580 do not support hardware video encoding via GPU Paravirtualization at this time.  
-- To download Windows ISOs with Rufus, it must have "Check for updates" enabled.
+
+## 特别鸣谢 / Thanks
+
+- [jamesstringerparsec/Easy-GPU-PV: A Project dedicated to making GPU Partitioning on Windows easier ](https://github.com/jamesstringerparsec/Easy-GPU-PV)
+- [KharchenkoPM/Interactive-Easy-GPU-PV: A Project dedicated to making GPU Partitioning on Windows way easier ](https://github.com/KharchenkoPM/Interactive-Easy-GPU-PV)
+- [chanket/DDA: 实现Hyper-V离散设备分配功能的图形界面工具。A GUI Tool For Hyper-V's Discrete Device Assignment(DDA). ](https://github.com/chanket/DDA)
+

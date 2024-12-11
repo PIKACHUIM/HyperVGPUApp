@@ -1,60 +1,274 @@
-﻿<# 
-If you are opening this file in Powershell ISE you should modify the params section like so...
-Remember: GPU Name must match the name of the GPU you assigned when creating the VM...
+#========================================================================
+param(
+    $rdp,
+    $Parsec,
+    $ParsecVDD,
+    $DisableHVDD,
+    $NumLock,
+    $team_id,
+    $key
+) 
+#========================================================================
 
-Param (
-[string]$VMName = "NameofyourVM",
-[string]$GPUName = "NameofyourGPU",
-[string]$Hostname = $ENV:Computername
-)
+#========================================================================
+function Remove-File {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (Test-Path $Path) { Remove-Item $Path -Force }
+}
+#========================================================================
 
-#>
+#========================================================================
+Remove-File "C:\unattend.xml"
+Remove-File "C:\Windows\system32\GroupPolicy\User\Scripts\psscripts.ini"
+Remove-File "C:\Windows\system32\GroupPolicy\User\Scripts\Logon\Install.ps1"
 
-Param (
-[string]$VMName,
-[string]$GPUName,
-[string]$Hostname = $ENV:Computername
-)
-
-Import-Module $PSSCriptRoot\CopyFile.psm1
-
-$VM = Get-VM -VMName $VMName
-$VHD = Get-VHD -VMId $VM.VMId
-
-If ($VM.state -eq "Running") {
-    [bool]$state_was_running = $true
+if ($NumLock -eq $true) {
+    $WshShell = New-Object -ComObject WScript.Shell
+    for ($i=0; $i -lt 5; $i++) {
+        Start-Sleep -s 0.1
+        if ([console]::NumberLock -eq $false) {
+            $WshShell.SendKeys("{NUMLOCK}")
+        } else { break }
     }
+    $path = "$DriveLetter\Windows\system32\GroupPolicy\User\Scripts\psscripts.ini"
+    "[Logon]"                                          >> $path
+    "0CmdLine=NumLockEnable.ps1"                       >> $path
+    "0Parameters="                                     >> $path
+    
+    $path = "$DriveLetter\Windows\system32\GroupPolicy\User\Scripts\Logon\NumLockEnable.ps1"
+    "`$WshShell = New-Object -ComObject WScript.Shell" >> $path
+    "for (`$i=0; `$i -lt 5; `$i++) {"                  >> $path
+    "    Start-Sleep -s 0.1"                           >> $path
+    "    if ([console]::NumberLock -eq `$false) {"     >> $path
+    "        `$WshShell.SendKeys(`"{NUMLOCK}`")"       >> $path
+    "    } else { break }"                             >> $path
+    "}"                                                >> $path
+}
+#========================================================================
 
-if ($VM.state -ne "Off"){
-    "Attemping to shutdown VM..."
-    Stop-VM -Name $VMName -Force
+#========================================================================
+function Set-RegistryPolicyItem {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]
+        [ValidateNotNullOrEmpty()]$path,
+        [Parameter(Mandatory = $true)]
+        [string]
+        [ValidateNotNullOrEmpty()]$name,
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]$value,
+        [int]$type,
+        [switch]$Force
+    )
+
+    $RegPolPath = "$env:SystemRoot\System32\GroupPolicy\Machine\Registry.pol"
+    
+    if ($type -eq 0) {
+        $type = switch ($value.GetType().Fullname) {
+            'System.String' { 1  }
+            'System.Int32'  { 4  }
+            'System.Int64'  { 11 }
+            default { return }
+        }
+    }
+    
+    function PolToUpperCase {
+        param(
+            [int[]]$data
+        ) 
+        return $data | % -begin {$nameSection=$false} -process {
+            if ($_ -eq 91)    { $nameSection = $true } 
+            elseif($_ -eq 65) { $nameSection = $false }
+            elseif($_ -ge 97 -and $_ -le 122 -and  $nameSection) { $_ -= 32 }
+            $_
+        }
+    }
+    
+    function LastIndexOfBytesPattern {
+        param (
+            [int[]]$data,
+            [int[]]$pattern
+        )
+        $i, $j = 0, 0
+        ForEach ($byte in $data) {
+            if($byte -eq $pattern[$j++]) { 
+                if($j -eq $pattern.Count) { return $i } 
+            } else {
+                $j = 0
+            } 
+            $i++
+        } 
+        return -1
+    }
+    
+    if (Test-path -path $RegPolPath) {
+        $rawData = [io.file]::ReadAllBytes($RegPolPath)
+    } else {
+        $rawData = @(80, 82, 101, 103, 1, 0, 0, 0)
+    }
+    
+    $isUptoDate = $true
+    $keyData    = [System.Text.Encoding]::Unicode.GetBytes($path)
+    $NameData   = [System.Text.Encoding]::Unicode.GetBytes($name)
+    
+    switch ($true) {        
+        ($type -eq 4 -or $type -eq 11) { $valueData  = [BitConverter]::GetBytes($value) }
+        $default { $valueData  = [System.Text.Encoding]::Unicode.GetBytes($value) }
+    }
+    
+    $pattern    = @(91, 0) + $keyData +  @(0, 0, 59, 0) + $NameData + @(0, 0, 59, 0)
+    $PolicyTypeOffset = (LastIndexOfBytesPattern (PolToUpperCase $rawData) (PolToUpperCase $pattern)) + 1
+    
+    if ($PolicyTypeOffset -gt 0) {
+        $ValueOffset = 12 + $PolicyTypeOffset
+        if ($rawData[$PolicyTypeOffset] -ne $type) {
+            return
+        }
+        for ($i = 0; $i -lt $valueData.Count; $i++) {
+            if ($rawData[$i + $ValueOffset] -ne $valueData[$i]) { 
+                $isUptoDate = $false 
+            }
+            $rawData[$i + $ValueOffset] = $valueData[$i]
+        }
+    } else {
+        $isUptoDate = $false
+        $rawData += $pattern + @($type, 0, 0, 0, 59, 0, $type, 0, 0, 0, 59, 0) + $valueData + @(93, 0)
+    }
+    
+    if ($isUptoDate -eq $false) {
+        [io.file]::WriteAllBytes($RegPolPath, $rawData)
+        if ($Force -eq $true) { 
+            Start-Process -FilePath "gpupdate" -ArgumentList "/force" -NoNewWindow -Wait 
+        }
+    }
+}
+#========================================================================
+
+#========================================================================
+function Set-AllowInBoundConnections {
+    param()
+    if ((Get-NetFirewallProfile -Profile Domain).DefaultInboundAction -ne 'Allow') {
+        Set-NetFirewallProfile -Profile Domain -DefaultInboundAction 'Allow'
+    }
+    if ((Get-NetFirewallProfile -Profile Private).DefaultInboundAction -ne 'Allow') {
+        Set-NetFirewallProfile -Profile Private -DefaultInboundAction 'Allow'
+    }
+    if ((Get-NetFirewallProfile -Profile Public).DefaultInboundAction -ne 'Allow') {
+        Set-NetFirewallProfile -Profile Public -DefaultInboundAction 'Allow'
+    }
+    Set-RegistryPolicyItem -Path "SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications" -Name "DisableNotifications" -Value 1
+    Set-RegistryPolicyItem -Path "SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Notifications" -Name "DisableEnhancedNotifications" -Value 1
+    Set-RegistryPolicyItem -Path "SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Firewall and network protection" -Name "UILockdown" -Value 1
+    Set-RegistryPolicyItem -Path "Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "ColorDepth" -Value 4
+    Set-RegistryPolicyItem -Path "Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "bEnumerateHWBeforeSW" -Value 1
+    Set-RegistryPolicyItem -Path "Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "fEnableVirtualizedGraphics" -Value 1
+    Set-RegistryPolicyItem -Path "Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "AVC444ModePreferred" -Value 1
+    Set-RegistryPolicyItem -Path "Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "fEnableWddmDriver" -Value 0 -Force
+}
+#========================================================================
+
+#========================================================================
+function Install-VBCable {
+    param()
+    if (!(Get-WmiObject Win32_SoundDevice | Where-Object name -like "VB-Audio Virtual Cable")) {
+        (New-Object System.Net.WebClient).DownloadFile("https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip", "C:\Users\$env:USERNAME\Downloads\VBCable.zip")
+        New-Item -Path "C:\Users\$env:Username\Downloads\VBCable" -ItemType Directory| Out-Null
+        Expand-Archive -Path "C:\Users\$env:USERNAME\Downloads\VBCable.zip" -DestinationPath "C:\Users\$env:USERNAME\Downloads\VBCable"
+        $pathToCatFile = "C:\Users\$env:USERNAME\Downloads\VBCable\vbaudio_cable64_win7.cat"
+        $FullCertificateExportPath = "C:\Users\$env:USERNAME\Downloads\VBCable\VBCert.cer"
+        $VB = @{}
+        $VB.DriverFile = $pathToCatFile;
+        $VB.CertName = $FullCertificateExportPath;
+        $VB.ExportType = [System.Security.Cryptography.X509Certificates.X509ContentType]::Cert;
+        $VB.Cert = (Get-AuthenticodeSignature -filepath $VB.DriverFile).SignerCertificate;
+        [System.IO.File]::WriteAllBytes($VB.CertName, $VB.Cert.Export($VB.ExportType))
+        while (((Get-ChildItem Cert:\LocalMachine\TrustedPublisher) | Where-Object {$_.Subject -like '*Vincent Burel*'}) -eq $NULL) {
+            certutil -Enterprise -Addstore "TrustedPublisher" $VB.CertName
+            Start-Sleep -s 5
+        }
+        Start-Process -FilePath "C:\Users\$env:Username\Downloads\VBCable\VBCABLE_Setup_x64.exe" -ArgumentList '-i','-h'
+    }
+}
+#========================================================================
+
+#========================================================================
+function Install-ParsecVDD {
+    param()
+    if (!(Get-WmiObject Win32_VideoController | Where-Object name -like "Parsec Virtual Display Adapter")) {
+        (New-Object System.Net.WebClient).DownloadFile("https://builds.Parsec.app/vdd/Parsec-vdd-0.41.0.0.exe", "C:\Users\$env:USERNAME\Downloads\Parsec-vdd.exe")
+        while (((Get-ChildItem Cert:\LocalMachine\TrustedPublisher) | Where-Object {$_.Subject -like '*Parsec*'}) -eq $NULL) {
+            certutil -Enterprise -Addstore "TrustedPublisher" C:\ProgramData\Easy-GPU-P\ParsecPublic.cer
+            Start-Sleep -s 5
+        }
+        if ($DisableHVDD -eq $true) {
+            Get-PnpDevice | Where-Object {($_.Instanceid | Select-String -Pattern "VMBUS") -and $_.Class -like "Display" -and $_.status -eq "OK"} | Disable-PnpDevice -confirm:$false
+        }
+        Start-Process "C:\Users\$env:USERNAME\Downloads\Parsec-vdd.exe" -ArgumentList "/s"
     } 
+}
+#========================================================================
 
-While ($VM.State -ne "Off") {
-    Start-Sleep -s 3
-    "Waiting for VM to shutdown - make sure there are no unsaved documents..."
+#========================================================================
+function Set-EasyGPUPScheduledTask {
+    param (
+        [switch]$RunOnce,
+        [string]$TaskName,
+        [string]$Path
+    )
+    if(!(Get-ScheduledTask | Where-Object { $_.TaskName -like "$($TaskName)" })) {
+        $principal = New-ScheduledTaskPrincipal -UserID "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        $Action    = New-ScheduledTaskAction -Execute "C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-file $Path"
+        $Trigger   = New-ScheduledTaskTrigger -AtStartup
+        New-ScheduledTask -Action $Action -Trigger $Trigger -Principal $principal | Register-ScheduledTask -TaskName "$TaskName"
+    } elseif ($RunOnce -eq $true) {
+        Unregister-ScheduledTask -TaskName "$TaskName" -Confirm:$false
     }
+}
+#========================================================================
 
-"Mounting Drive..."
-$DriveLetter = (Mount-VHD -Path $VHD.Path -PassThru | Get-Disk | Get-Partition | Get-Volume | Where-Object {$_.DriveLetter} | ForEach-Object DriveLetter)
+#========================================================================
+while(!(Test-NetConnection Google.com).PingSucceeded) {
+    Start-Sleep -Seconds 1
+}
 
-"Copying GPU Files - this could take a while..."
-Add-VMGPUPartitionAdapterFiles -hostname $Hostname -DriveLetter $DriveLetter -GPUName $GPUName
+Get-ChildItem -Path C:\ProgramData\Easy-GPU-P -Recurse | Unblock-File
 
-"Dismounting Drive..."
-Dismount-VHD -Path $VHD.Path
-
-If ($state_was_running){
-    "Previous State was running so starting VM..."
-    Start-VM $VMName
+if ($Parsec -eq $true) {
+    if ((Test-Path HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Parsec) -eq $false) {
+        (New-Object System.Net.WebClient).DownloadFile("https://builds.parsecgaming.com/package/parsec-windows.exe", "C:\Users\$env:USERNAME\Downloads\Parsec-windows.exe")
+        Start-Process "C:\Users\$env:USERNAME\Downloads\Parsec-windows.exe" -ArgumentList "/silent", "/shared","/team_id=$team_id","/team_computer_key=$key" -wait
+        while (!(Test-Path C:\ProgramData\Parsec\config.txt)) {
+            Start-Sleep -s 1
+        }
+        $configfile  = Get-Content C:\ProgramData\Parsec\config.txt
+        $configfile += "host_virtual_monitors = 1"
+        $configfile += "host_privacy_mode = 1"
+        $configfile | Out-File C:\ProgramData\Parsec\config.txt -Encoding ascii
+        Copy-Item -Path "C:\ProgramData\Easy-GPU-P\Parsec.lnk" -Destination "C:\Users\Public\Desktop"
+        try {
+            Stop-Process Parsecd -Force
+        } catch {
+        }
     }
+    if ($ParsecVDD -eq $true) {
+        Install-ParsecVDD
+    }
+    Install-VBCable 
+    if ($ParsecVDD -eq $true) {
+        Set-EasyGPUPScheduledTask -TaskName "Monitor Parsec VDD State" -Path "%programdata%\Easy-GPU-P\VDDMonitor.ps1"
+    }
+}
 
-"Done..."
+if ($rdp -eq $true) {
+    Set-AllowInBoundConnections
+}
+#========================================================================
+
 # SIG # Begin signature block
 # MIItPAYJKoZIhvcNAQcCoIItLTCCLSkCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDxCMFM+5aviqxZ
-# +GKvumtDLCg7xKCfJieP0d7o3lLo16CCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBvxEeEzKq03GS1
+# GZgeGTSnDFWyji10+VMH1lzf8qoS9qCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -155,23 +369,23 @@ If ($state_was_running){
 # Ew9TZWN0aWdvIExpbWl0ZWQxKzApBgNVBAMTIlNlY3RpZ28gUHVibGljIENvZGUg
 # U2lnbmluZyBDQSBSMzYCEQDJQtVKxGjxZ+PGgaihP65RMA0GCWCGSAFlAwQCAQUA
 # oHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQw
-# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIHT4
-# ehHAVPXRTcdA0PoQ85rfSElnKpmb4+QkEUoU2XdFMA0GCSqGSIb3DQEBAQUABIIC
-# AJNdZ1LoZItotggTgkA3NOkAwI23CaaE0aM3MfJCqNWYmTCytV4OSGdhyUIXL9rO
-# gQMLJPru3hn/jfAAa6u1SIsm7b1rpKYVMsbl4YILpGkRuLDrVWFGOKhjnH3DvaDG
-# 5qe7ASpPqFTXMQoB2PKwqqz9ef/rMtgErAzDSb8DqXV3W1ciybLbrOaJMWmUY/wn
-# q2OwTHd8KjwmHZnKH9j2mKNkU5RXR51Zgt8w1kK3NELy0XZJDmG2QVzL5tcMu9X3
-# 6VDbIExYqMHupX2oC2nVefFlrsinCwpR9f8zklFo0ugJrmYxy5tS063Cw+1oXOui
-# TMM5A5hIwuZ+Yl3nMsHkN/nCbyOk2GjOiFIwQC1MSUo0Hn/5JFA+011xIo1KrYkh
-# Qs8gaSkRnJUJ3WctjIHp2OFPbETfDI6Ar4EObTcA2w5PhhlWVFNPFXqHJbLoJbcw
-# QlHk3lID0c5obrxRCZYn2tiMg65fw91L7CCUNVthAPwegzxEH6dOASLkI7OptAi4
-# I8KDEDhvd4qZupbwUqFOfIHGl3Y1kt40gd0Td9GBujve+AwGFLbMP7f5MGg09xQN
-# gslxIVcsCt0ZYOv4QBciGcYRswP07zroaZo5OTOIvpwXYE1tjr0VsSr3Ai4To3W3
-# 0EMRiYcLb/etta9+c4I0Zsm0eJnJCzqlKFjRFu3O6rkLoYIXWzCCF1cGCisGAQQB
+# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIACB
+# DQjSTUr+CbTOZVXJQh53bgN22uuG8op44rgg/PiJMA0GCSqGSIb3DQEBAQUABIIC
+# AEvQ+MPvYX/f1tMd7t1Q3AwVOVMC0X3STXayv4ITSYcsyWHgnSjJxUPWWOfhe8jf
+# xmybJCyLf540qbnrwzWUKcfSpMWBsQegFJYJ4HE5JvheQDcWIr1963WQOO8Kq2xG
+# m/VIxkFoN7EVWMglcYM2Wed/owOL4rujK39vNPgtxneu625Wk/c+7DiYpr3O4gWL
+# 4mN90r+FM0ZZD2fYq80p7DlJT3niwCyjdj3GFere/vGi/s4C0L7rs8FFmnjcGY1V
+# rlwXQPaiu+uqck+4BOt9Q13UiMYiBuHDLGr/kYPUHSncSBlTOTJtvjOVMhvlIZkJ
+# ndMnV0yiW22fw23MD4tnTDiT+qqMMaiTStSrjsE4bSSmrymdl7GUMXWfnqulJjC6
+# KpvVzyFn1xWtzTmNv9ALDtzMlRcopnqo0wtWAS17VsgXafHU4l1UGIoxgHCi/oxB
+# FN6yLpcUCHrRrvcay7PeAMehJT7xB1anUqRwH119VCHj4c7gN8FkzDD45CR5DdPW
+# 4RAkrZYC0/NkoeFsSIneaJpsTWJaFIIrtq/iveAszjGfhRpM1zZDvg0T/Upj4N5e
+# bXxpG6jj5YYJJJfv+Zo9nO9dCdnT5wXfERM2LXc+3lJIZqWO9tEX/Cvmdx2hwb0y
+# ccA9003ni8Z3ZKcTgM0HCWqmb7s6B7uDyPpU68CAm4hooYIXWzCCF1cGCisGAQQB
 # gjcDAwExghdHMIIXQwYJKoZIhvcNAQcCoIIXNDCCFzACAQMxDzANBglghkgBZQME
 # AgIFADCBiAYLKoZIhvcNAQkQAQSgeQR3MHUCAQEGCWCGSAGG/WwHATBBMA0GCWCG
-# SAFlAwQCAgUABDCem6v2tSVb25DsW0TTKkvZBvg2ONsaKozIu+0J++ZyDV1AcJsR
-# lZd46vAQaD0ROnYCEQDmQFOpzUe3mXBJ6laIVBBfGA8yMDI0MTIxMTAzMDc0Mlqg
+# SAFlAwQCAgUABDAJR1DOEftmmaj+syswFnovMzkPY6JL9AifkiqEbVgquizRdVX5
+# 7x8rTrI8b5akAfgCEQCzaGbybnOFulwS1lKIlVqnGA8yMDI0MTIxMTEwMDY0N1qg
 # ghMDMIIGvDCCBKSgAwIBAgIQC65mvFq6f5WHxvnpBOMzBDANBgkqhkiG9w0BAQsF
 # ADBjMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNV
 # BAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1w
@@ -277,20 +491,20 @@ If ($state_was_running){
 # VVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBU
 # cnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFtcGluZyBDQQIQC65mvFq6
 # f5WHxvnpBOMzBDANBglghkgBZQMEAgIFAKCB4TAaBgkqhkiG9w0BCQMxDQYLKoZI
-# hvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI0MTIxMTAzMDc0MlowKwYLKoZIhvcN
+# hvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI0MTIxMTEwMDY0N1owKwYLKoZIhvcN
 # AQkQAgwxHDAaMBgwFgQU29OF7mLb0j575PZxSFCHJNWGW0UwNwYLKoZIhvcNAQkQ
 # Ai8xKDAmMCQwIgQgdnafqPJjLx9DCzojMK7WVnX+13PbBdZluQWTmEOPmtswPwYJ
-# KoZIhvcNAQkEMTIEMH/eYO5xYPgIBMrPXjQhUwoOUISznNDyYH7Hgu145ZgfljhQ
-# f5W1rXcVR6nJbG6hcTANBgkqhkiG9w0BAQEFAASCAgBAgslwFUYDUqKImsNbZna8
-# L9oWOVRGn7I6Q0joJ7+kWE3GTEPeu6my7Zho/HbKgS9QiKipPlsnmLrkEPWarJIL
-# HfYl6z31L3zVSZ1FK+NR16QQKIcNswme2m4w9d9x58bRDWXUMmw5v9yIdlOHyd7h
-# ka8ajo0E4o0HRhuWy1gpDU3ENmbSD6vU0YZfNN5Husojz0ZxpO2GKLJDiclGPgZ6
-# +FbS/KF54F0pWeJW2nZZ0gEG62uMH9w7RM373oJJy53qYLkygUWPdrtLwZ+GFr3T
-# uAiuURyAovLoUW+tLa/wEEtPyNTulSMMN0T5crqQ/9RimIBXXnPrVKc0GlCMGsug
-# IshfPVrFE/sM3vHyq1E5OWD/VYP5bGc3CYOSWoxRykQi3GbTqQ3MaLky3jE++2ka
-# pbCzfNLgsyaB+skhoyzqrT6DScecJdgdLoS2y9TZkwvgC3KiRSKk0bXYFFxtHuAx
-# OvFnDzbRVNdWmL7le6tIxTDU8Y2hMHIimrTt9u7ROZp+aAfddY5DgxKIwJVe/Lqy
-# 1LeXCGy4o74tZTAsQP603AMUqlN7mDSX3D8M267ybJ6k5sFXnt2Lgg2E6hg74Y06
-# a2q5oU8XCIDmq2k8QYeb/D/cN5PBPd5ipGXwJPug558/yIUVVTSrabpb280/F6NB
-# votz4hCNa2yYa+e8dfYzVw==
+# KoZIhvcNAQkEMTIEMHYvxPxE5H5TyN3pc9A1XFWvPA9z+nLgiZ9RaG7X8wEZfbQg
+# J9yqwDljzSVb+M5vZjANBgkqhkiG9w0BAQEFAASCAgCGXN8ABJmEt+58MV/w1lKO
+# E2qSmqci45CEaa5xlEXpKm7V4CsIptso8Fi5SOkKEsMMhiawu/M31hHKOoxtked8
+# pF/WSQaVn+liBJRZyJZg8jskItigo4c2++1wnw0Lpu1X+zQiwixyXjpSEDkmpe7P
+# JPACfjwCw3ejIcE/IoK7oiCZyg99/C1aOmJB83cZ1+Vc2qCv/6t1Tb69wMk2A4z1
+# /ba2u77lj4p9V2Y2BG7r84+c/Ke6KlIhv4J6BboV3T9YM+LqDYN8HM8IZNB8nCdB
+# Zn8M448i0IzYIg2FjYQOXLQStmVPQZQ1YuMx3VdqXaNeThvESkzVlB6/NKATLmv7
+# KfQKwmz56pHT+h4mVouEDCtkSPtiG+PBWlP8kWCCjn7xNqyVjLAo7B7NjowWtSJd
+# VE9ZzafiweNu7RxDbSYHmDRsXHIIr/u222u7nNt6S3CJlAoR7ctRe+gGZ0h5KRkE
+# zPoMKYmedzg1+e2oUJ3bVKG0tgOy1LNLrxg51CuPGo3FSf50uizXlWp4CZRi3R9d
+# pfwZMe9afr2digos6qAQfi6oqMmm6TohC/ycGCJU1sdlkvTXNV4/zfEjc90uYdVT
+# XyQe3WBZTQQWvGCwbP7qUoaANlNOy5DUP3l/Abt/4B9G9xO0CLW7KvHvPZ2N4qyh
+# qCkS+xvKRRcMjEqEWcIkyQ==
 # SIG # End signature block

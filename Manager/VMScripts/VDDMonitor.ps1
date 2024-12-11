@@ -1,85 +1,18 @@
-﻿Function Add-VMGpuPartitionAdapterFiles {
-param(
-[string]$hostname = $ENV:COMPUTERNAME,
-[string]$DriveLetter,
-[string]$GPUName
-)
-
-If (!($DriveLetter -like "*:*")) {
-    $DriveLetter = $Driveletter + ":"
-    }
-
-If ($GPUName -eq "AUTO") {
-    $PartitionableGPUList = Get-WmiObject -Class "Msvm_PartitionableGpu" -ComputerName $env:COMPUTERNAME -Namespace "ROOT\virtualization\v2"
-    $DevicePathName = $PartitionableGPUList.Name | Select-Object -First 1
-    $GPU = Get-PnpDevice | Where-Object {($_.DeviceID -like "*$($DevicePathName.Substring(8,16))*") -and ($_.Status -eq "OK")} | Select-Object -First 1
-    $GPUName = $GPU.Friendlyname
-    $GPUServiceName = $GPU.Service 
-    }
-Else {
-    $GPU = Get-PnpDevice | Where-Object {($_.Name -eq "$GPUName") -and ($_.Status -eq "OK")} | Select-Object -First 1
-    $GPUServiceName = $GPU.Service
-    }
-# Get Third Party drivers used, that are not provided by Microsoft and presumably included in the OS
-
-Write-Host "INFO   : Finding and copying driver files for $GPUName to VM. This could take a while..."
-
-$Drivers = Get-WmiObject Win32_PNPSignedDriver | where {$_.DeviceName -eq "$GPUName"}
-
-New-Item -ItemType Directory -Path "$DriveLetter\windows\system32\HostDriverStore" -Force | Out-Null
-
-#copy directory associated with sys file 
-$servicePath = (Get-WmiObject Win32_SystemDriver | Where-Object {$_.Name -eq "$GPUServiceName"}).Pathname
-                $ServiceDriverDir = $servicepath.split('\')[0..5] -join('\')
-                $ServicedriverDest = ("$driveletter" + "\" + $($servicepath.split('\')[1..5] -join('\'))).Replace("DriverStore","HostDriverStore")
-                if (!(Test-Path $ServicedriverDest)) {
-                Copy-item -path "$ServiceDriverDir" -Destination "$ServicedriverDest" -Recurse
-                }
-
-# Initialize the list of detected driver packages as an array
-$DriverFolders = @()
-foreach ($d in $drivers) {
-
-    $DriverFiles = @()
-    $ModifiedDeviceID = $d.DeviceID -replace "\\", "\\"
-    $Antecedent = "\\" + $hostname + "\ROOT\cimv2:Win32_PNPSignedDriver.DeviceID=""$ModifiedDeviceID"""
-    $DriverFiles += Get-WmiObject Win32_PNPSignedDriverCIMDataFile | where {$_.Antecedent -eq $Antecedent}
-    $DriverName = $d.DeviceName
-    $DriverID = $d.DeviceID
-    if ($DriverName -like "NVIDIA*") {
-        New-Item -ItemType Directory -Path "$driveletter\Windows\System32\drivers\Nvidia Corporation\" -Force | Out-Null
-        }
-    foreach ($i in $DriverFiles) {
-            $path = $i.Dependent.Split("=")[1] -replace '\\\\', '\'
-            $path2 = $path.Substring(1,$path.Length-2)
-            $InfItem = Get-Item -Path $path2
-            $Version = $InfItem.VersionInfo.FileVersion
-            If ($path2 -like "c:\windows\system32\driverstore\*") {
-                $DriverDir = $path2.split('\')[0..5] -join('\')
-                $driverDest = ("$driveletter" + "\" + $($path2.split('\')[1..5] -join('\'))).Replace("driverstore","HostDriverStore")
-                if (!(Test-Path $driverDest)) {
-                Copy-item -path "$DriverDir" -Destination "$driverDest" -Recurse
-                }
-            }
-            Else {
-                $ParseDestination = $path2.Replace("c:", "$driveletter")
-                $Destination = $ParseDestination.Substring(0, $ParseDestination.LastIndexOf('\'))
-                if (!$(Test-Path -Path $Destination)) {
-                    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-                    }
-                Copy-Item $path2 -Destination $Destination -Force
-                
-            }
-
-    }
-    }
-
+﻿#========================================================================
+While ($true) {
+    $VDD = Get-PnpDevice | where {$_.friendlyname -like "Parsec Virtual Display Adapter"}
+    if (($VDD -eq $NULL) -or ($VDD.Status -eq 'OK')){
+        exit
+    } 
+    Enable-PnpDevice -InstanceId $VDD.InstanceId -Confirm:$false
+    Start-Sleep -s 5
 }
+#========================================================================
 # SIG # Begin signature block
 # MIItOwYJKoZIhvcNAQcCoIItLDCCLSgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBX6+GhHkVkvP5V
-# ZFmDzUiw/iwbspWS/QwOyMpNWcQkDaCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCrLv/ndMoa5Qsz
+# L0FP/LXjvD2YFLtEpagWfXWc5Z25eaCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -180,23 +113,23 @@ foreach ($d in $drivers) {
 # Ew9TZWN0aWdvIExpbWl0ZWQxKzApBgNVBAMTIlNlY3RpZ28gUHVibGljIENvZGUg
 # U2lnbmluZyBDQSBSMzYCEQDJQtVKxGjxZ+PGgaihP65RMA0GCWCGSAFlAwQCAQUA
 # oHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQw
-# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEICnF
-# w65mKnWd58OnfoBLY5NVz9dgGdZWWhp94qkd1z5pMA0GCSqGSIb3DQEBAQUABIIC
-# AJuLbz0ZXmHR49/Id66zAutTIPKh4yZf5KMikVR1EsF8tTSKP9wcQ5tnCUrewlfU
-# Dd9HjN2oE1z6fhB3hzwNWNUD8amSoNR4jl5DhOKIujoGDZUqS8fTrkyOnZHHWcdP
-# hhn8QWsXWbaKD9N5QotRMVmb6cHt7sx73VIL40PJqsmhrO7buNm+zydhSVBK1eBk
-# GoTJ/CpSUp4XnEyJMh2p1MbwA3zzGucYuJCT5B4sxJUIYVrBzOedQjUYvmRJ5U9c
-# 9QOzEo6Qnw5kf8RVcyrEPF1k29KDELufqwcK0vkcvho9SdQb6OtbmJ4a88AIV8rY
-# Q0BKqdNedngxANWY0NsQqZdCtd8fUImGsmv0rOrhkokW5jxCD1wcNEzgdVmg0Y5P
-# ECL7e8x3fKcY2ezDOoPQvFjtJ6Un9UohBz77hV+BnmuK5IqrTtMstByKOAA4jM+X
-# Vb9AIfoJkpvpkJaS36bsN+3JP+wTXcA45sYt9DnaQeawgTD3YYumE8uWR7Tdu9oP
-# jdVAKjj6zJVE5e/6hJ7RcYgXxZSI2JI024n5U1JfW3hSrx7b2PVBL5ND28D1diKD
-# KuCG6yrc1Z2d8GH7n6A0f4qNXn8wtGUbXmKni3uiYnUmeLe5rRf+gg3vghegdRgk
-# YmKtiaKdIBOJ2hjpx7JqWqib+tVM4nlCtyrGuoMvfrdvoYIXWjCCF1YGCisGAQQB
+# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIJNt
+# I8gotZW/SbRbXbP82NbShET295ET5lfRSk6o22leMA0GCSqGSIb3DQEBAQUABIIC
+# ADyhyCg8tJ47lh6+TB96E801KR/1UFFeTAt8bnEl/wzRknCF34TaLH947NqR/iXV
+# H1JxZ9c9z1q8NzKlSsy0rZb1UFTiubnb5T3/inDjw+YFYSRWKG58ggrbBw9Vipe1
+# D+XVK/kFpB1crJjmQOtsh9guT8iweIh0UKgbbNcOZooSdNdWQZnmGr60DWSgGjW5
+# 7MlYolXErXVy9olp1c57PNfjCd3r4tTaANmubUCD9I1eNDkuGu8M9VPD0cd9P10d
+# /UGH2ur6sO7tmKVy/cPdIwrKD3PEim1Gdd8G8NAaWv5M+zS8GybtzXarO7tGwxYh
+# SSNU8NQmnRyKCx5fBke8x47v3a94KAuJn9vPnGiADE5p7dxJQsczTARFxPXtgIEa
+# /DaVOHXNQ6uiWHOSFRka97R/C/5jXpMHy1Zs8iuc0go9SYYL680nD/JW8xUAvZOB
+# Ws1/QkYtINR+Mrk5IIwqDRuBioYlGmcnSIVAPuVprAN6AMlJ/4uvSIFQTKxmBn+d
+# kKgG83nrArpBVKlZUVRPCgxGoHbBO2vO/XjiFyo2eMYI+fw1/3VJwANbImAcnx4P
+# Q9rUoVFuD3nfVlKh5isz6ohoh5j41WxwI8R1Ahe/XQH3iMia4WEhCtTyo5ZIAPX3
+# eKD3K6Yrcu/xhU3zASJMRJoTLlPKcPWqhjvtD9IfRndAoYIXWjCCF1YGCisGAQQB
 # gjcDAwExghdGMIIXQgYJKoZIhvcNAQcCoIIXMzCCFy8CAQMxDzANBglghkgBZQME
 # AgIFADCBhwYLKoZIhvcNAQkQAQSgeAR2MHQCAQEGCWCGSAGG/WwHATBBMA0GCWCG
-# SAFlAwQCAgUABDD46dJDWkQrspAkh0/PFZXnCSJy+0I52pXDSZ+RSgo0As7zXB6u
-# xZ34ZC5AUrdkIHoCECcOG1Vi1yuQrkoVA+rV2hgYDzIwMjQxMjExMDMwODI3WqCC
+# SAFlAwQCAgUABDBIZAXq5U9SJJjGgna5hhaDHifBdA3V5kuu1erqaxuQjjcQaUaA
+# hUu3jw2d39zRJ3UCEBIyNUf7/fOfFXNQ4F9I5soYDzIwMjQxMjExMTAwNjQ4WqCC
 # EwMwgga8MIIEpKADAgECAhALrma8Wrp/lYfG+ekE4zMEMA0GCSqGSIb3DQEBCwUA
 # MGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UE
 # AxMyRGlnaUNlcnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBp
@@ -302,20 +235,20 @@ foreach ($d in $drivers) {
 # UzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRy
 # dXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENBAhALrma8Wrp/
 # lYfG+ekE4zMEMA0GCWCGSAFlAwQCAgUAoIHhMBoGCSqGSIb3DQEJAzENBgsqhkiG
-# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMDMwODI3WjArBgsqhkiG9w0B
+# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMTAwNjQ4WjArBgsqhkiG9w0B
 # CRACDDEcMBowGDAWBBTb04XuYtvSPnvk9nFIUIck1YZbRTA3BgsqhkiG9w0BCRAC
 # LzEoMCYwJDAiBCB2dp+o8mMvH0MLOiMwrtZWdf7Xc9sF1mW5BZOYQ4+a2zA/Bgkq
-# hkiG9w0BCQQxMgQwK8dsUwlg4Boyxc+CkoKCB6fKFhHFTPnPk/guqthn/biUFQ0I
-# 0ozlDKwTU8RHAmcJMA0GCSqGSIb3DQEBAQUABIICAIZ9/8j0/06M3Dx5VEyjjSbX
-# dwLC6b2AglmhK1gfODGHxG3F5JosYlSxXDSI0jy/EQ9H3Dh6srsO/2gsUtMetFJs
-# wvQfY04X3qpyD6OUkd2zSoA/cbOW3y/5oI1OLG8geKTTnzAuUL/2JCAkO23aZYJ4
-# SgkYUSwTiJQhBYOPPMpMgEe0X1fu3iOonQzXrMBgmdIigDQtxTfgk9KFVQvDcq1U
-# dSA//xMTV0GPQSh7mpBBgilpvPTZ2HJH2T4iX4P13uOFvbp9x8nY2UahevfhLe0s
-# Rvcxut9s7tp8v7g+uyJjYF6SkpwdlBcHDTuQUAE73wj/TUhK2/mh7k4PSGt6zEy3
-# 6iof8r17Q0qH7vVxzwMFOwMBwRPx5uHsL5ydS9RgKLkZB3Ax6q10NQ7hb2aBaZ5M
-# wOIJWWaOatYCZ/JjXU90mX8ilnh/2bTM8ZpjGmsFLGpxcKXk2RLjhvttCaLi92/Y
-# PVm1nz77QZwrELeqzflMQTgKt/wsAHyWH1iJJ8xVwm9YFgEY1kERahtHRf2cjvpe
-# 8fUKO7qcUWpOsUVRuz6CP1Fnj73KBfo8piOO21FIoDptAHBBJFSafGeznG+cdJIK
-# k4r/NPbddcDweuZyBYSR8eynDYvb0nMopztAYeD4SlQkyH4JXMsyruyUZk3J4k/C
-# ld/C/wfWlV8EVMf3HJsq
+# hkiG9w0BCQQxMgQwfgHgSmE7nfkyC/JifRyHMpzje6UmbWtge601Y5+L2j0EH0gn
+# MWbp3QkbRoGGJl0NMA0GCSqGSIb3DQEBAQUABIICAEiMGfwyVVlQaHLtKjb5isBE
+# SJJvlK0u7MByzL0YZulxNq3J6/2qr1iZtTymD7JXCGrvxQQtuxUkHW2PknfzxdK8
+# 0GYSTeqAIE7Ejd7sGvNSiif5h+icQdpmrx1jXi1nmDo9JEcWPrQhaMq3lXmVjLFY
+# 2/UdkFQGkDKiucesVRqlJDrTdLqeMafnWV/IMpletBRdgJN/VkuES8TRsD4A/LBH
+# J/azWsBx1jJzT5ESTkyq9fjKLZJaSnBYXABNpO7IQeStiZ6v+V7lW3cJFQDiJUh5
+# PoJv4JKmZJ0melKeqH/O4C4a3PYdSvzdIKCfa/f83f8jeq6wph8wW4pXaUtTcHaz
+# IQmo35YZk1HwHeJvYuBanna5ksy+wfRKkO0gxnUXymLf26/iYdWb5eyPwVyN7wJS
+# aDvaf0iQHMh8R2IXbsB2lw7H7OVkOCAKH/yCRcCsGee+qEL47KwfuuQoSQBbQG85
+# J2gu0jcoR3AEuZdtOFJR3bcg5Qc1S6EeZY3PlsVY16X8GpW2U1mwqu7b/c0//dR3
+# wlw7wiWgKeblxjUiK12QEx27c1BQgSdXR4S5JbNy235xkINMMhR7EUvflTk1aiEY
+# Yqh/g3Ll6T0v3QU2OuZ8z49QJuPiwBCbXQjYtDY85vo/rWmJ6MhDkpqFbdvgygKf
+# hh+CPTjhcn/DjRl92pUa
 # SIG # End signature block

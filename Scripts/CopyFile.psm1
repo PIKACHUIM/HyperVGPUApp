@@ -1,79 +1,105 @@
-﻿
-
-Function Get-DesktopPC
+﻿Function Add-VMGpuPartitionAdapterFiles
 {
- $isDesktop = $true
- if(Get-WmiObject -Class win32_systemenclosure | Where-Object { $_.chassistypes -eq 9 -or $_.chassistypes -eq 10 -or $_.chassistypes -eq 14})
-   {
-   #Write-Warning "Computer is a laptop. Laptop dedicated GPU's that are partitioned and assigned to VM may not work with Parsec."
-   #Write-Warning "Thunderbolt 3 or 4 dock based GPU's may work"
-   $isDesktop = $false }
- if (Get-WmiObject -Class win32_battery)
-   { $isDesktop = $false }
- $isDesktop
-}
-
-Function Get-WindowsCompatibleOS {
-$build = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
-if ($build.CurrentBuild -ge 19041 -and ($($build.editionid -like 'Professional*') -or $($build.editionid -like 'Enterprise*') -or $($build.editionid -like 'Education*') -or $($build.editionid -like 'Server*'))) {
-    Return $true
+    param(
+        [string]$hostname = $ENV:COMPUTERNAME,
+        [string]$DriveLetter,
+        [string]$GPUName
+    )
+    Write-Host "INFO   : GPUName: $GPUName"
+    If (!($DriveLetter -like "*:*"))
+    {
+        $DriveLetter = $Driveletter + ":"
     }
-Else {
-    #Write-Warning "Only Windows 10 20H1 or Windows 11 (Pro or Enterprise) is supported"
-    Return $true
-    # Return $false
-    }
-}
 
-
-Function Get-HyperVEnabled {
-if (Get-WindowsOptionalFeature -Online | Where-Object FeatureName -Like 'Microsoft-Hyper-V-All'){
-    Return $true
+    If ($GPUName -eq "AUTO")
+    {
+        $PartitionableGPUList = Get-WmiObject -Class "Msvm_PartitionableGpu" -ComputerName $env:COMPUTERNAME -Namespace "ROOT\virtualization\v2"
+        $DevicePathName = $PartitionableGPUList.Name | Select-Object -First 1
+        $GPU = Get-PnpDevice | Where-Object { ($_.DeviceID -like "*$($DevicePathName.Substring(8, 16) )*") -and ($_.Status -eq "OK") } | Select-Object -First 1
+        $GPUName = $GPU.Friendlyname
+        $GPUServiceName = $GPU.Service
     }
-elseif (Get-WindowsOptionalFeature -Online | Where-Object FeatureName -Like 'Microsoft-Hyper-V'){
-    Return $true
-}
-Else {
-    #Write-Warning "You need to enable Virtualisation in your motherboard and then add the Hyper-V Windows Feature and reboot"
-    Return $false
+    Else
+    {
+        $GPU = Get-PnpDevice | Where-Object { ($_.Name -eq "$GPUName") -and ($_.Status -eq "OK") } | Select-Object -First 1
+        Write-Host "INFO   : GPU: $GPU"
+        $GPUServiceName = $GPU.Service
     }
-}
+    # Get Third Party drivers used, that are not provided by Microsoft and presumably included in the OS
+    Write-Host "INFO   : GPUServiceName: $GPUServiceName"
+    Write-Host "INFO   : Finding and copying driver files for $GPUName to VM. This could take a while..."
 
-Function Get-WSLEnabled {
-    if ((wsl -l -v)[2].length -gt 1 ) {
-        #Write-Warning "WSL is Enabled. This may interferre with GPU-P and produce an error 43 in the VM"
-        Return $true
+    $Drivers = Get-WmiObject Win32_PNPSignedDriver | where { $_.DeviceName -eq "$GPUName" }
+
+    Write-Host "ADDS   : $DriveLetter\windows\system32\HostDriverStore"
+    New-Item -ItemType Directory -Path "$DriveLetter\windows\system32\HostDriverStore" -Force | Out-Null
+
+    #copy directory associated with sys file
+    $servicePath = (Get-WmiObject Win32_SystemDriver | Where-Object { $_.Name -eq "$GPUServiceName" }).Pathname
+    Write-Host "PATH   : $servicePath"
+    $ServiceDriverDir = $servicepath.split('\')[0..5] -join ('\')
+    Write-Host "DIRS   : $ServiceDriverDir"
+    $ServicedriverDest = ("$driveletter" + "\" + $( $servicepath.split('\')[1..5] -join ('\') )).Replace("DriverStore", "HostDriverStore")
+    Write-Host "DEST   : $ServicedriverDest"
+    if (!(Test-Path $ServicedriverDest))
+    {
+        Copy-item -path "$ServiceDriverDir" -Destination "$ServicedriverDest" -Recurse
+        Write-Host "COPY   : $ServiceDriverDir-->$ServicedriverDest"
+    }
+
+    # Initialize the list of detected driver packages as an array
+    $DriverFolders = @()
+    foreach ($d in $drivers)
+    {
+
+        $DriverFiles = @()
+        $ModifiedDeviceID = $d.DeviceID -replace "\\", "\\"
+        $Antecedent = "\\" + $hostname + "\ROOT\cimv2:Win32_PNPSignedDriver.DeviceID=""$ModifiedDeviceID"""
+        $DriverFiles += Get-WmiObject Win32_PNPSignedDriverCIMDataFile | where { $_.Antecedent -eq $Antecedent }
+        $DriverName = $d.DeviceName
+        $DriverID = $d.DeviceID
+        if ($DriverName -like "NVIDIA*")
+        {
+            New-Item -ItemType Directory -Path "$driveletter\Windows\System32\drivers\Nvidia Corporation\" -Force | Out-Null
         }
-    Else {
-        Return $false
+        foreach ($i in $DriverFiles)
+        {
+            $path = $i.Dependent.Split("=")[1] -replace '\\\\', '\'
+            $path2 = $path.Substring(1, $path.Length - 2)
+            $InfItem = Get-Item -Path $path2
+            $Version = $InfItem.VersionInfo.FileVersion
+            If ($path2 -like "c:\windows\system32\driverstore\*")
+            {
+                $DriverDir = $path2.split('\')[0..5] -join ('\')
+                $driverDest = ("$driveletter" + "\" + $( $path2.split('\')[1..5] -join ('\') )).Replace("driverstore", "HostDriverStore")
+                if (!(Test-Path $driverDest))
+                {
+                    Copy-item -path "$DriverDir" -Destination "$driverDest" -Recurse
+                    Write-Host "COPY   : $DriverDir-->$driverDest"
+                }
+            }
+            Else
+            {
+                $ParseDestination = $path2.Replace("c:", "$driveletter")
+                $Destination = $ParseDestination.Substring(0,$ParseDestination.LastIndexOf('\'))
+                if (!$( Test-Path -Path $Destination ))
+                {
+                    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+                }
+                Copy-Item $path2 -Destination $Destination -Force
+                Write-Host "COPY   : $path2-->$Destination"
+
+            }
+
         }
-}
+    }
 
-Function Get-VMGpuPartitionAdapterFriendlyName {
-    $Devices = (Get-WmiObject -Class "Msvm_PartitionableGpu" -ComputerName $env:COMPUTERNAME -Namespace "ROOT\virtualization\v2").name
-    Foreach ($GPU in $Devices) {
-        $GPUParse = $GPU.Split('#')[1]
-        $GPU_Name = Get-WmiObject Win32_PNPSignedDriver | where {($_.HardwareID -eq "PCI\$GPUParse")} | select DeviceName -ExpandProperty DeviceName
-        Write-Host $GPU_Name"|||"$GPU
-        }
 }
-
-If ((Get-DesktopPC) -and  (Get-WindowsCompatibleOS) -and (Get-HyperVEnabled)) {
-#    "System Compatible"
-#    "Printing a list of compatible GPUs...May take a second"
-#    "Copy the name of the GPU you want to share..."
-    Get-VMGpuPartitionAdapterFriendlyName
-    #Read-Host -Prompt "Press Enter to Exit"
-}
-else {
-    #Read-Host -Prompt "Press Enter to Exit"
-}
-
 # SIG # Begin signature block
 # MIItOwYJKoZIhvcNAQcCoIItLDCCLSgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDGq34W5OWN/jJh
-# fhsbEIrJs/t2/72FwhHY8IoHa0hd2KCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA+7pBnIr13J6Fh
+# 0ngGHj57XQKFOcBTPBTC7ItYszUlbaCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -174,23 +200,23 @@ else {
 # Ew9TZWN0aWdvIExpbWl0ZWQxKzApBgNVBAMTIlNlY3RpZ28gUHVibGljIENvZGUg
 # U2lnbmluZyBDQSBSMzYCEQDJQtVKxGjxZ+PGgaihP65RMA0GCWCGSAFlAwQCAQUA
 # oHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQw
-# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIGs6
-# ti5Z/0QDziw1zXeo7TPAhCDKgOWYWTUJhlIMGAckMA0GCSqGSIb3DQEBAQUABIIC
-# AKIdZknLDDat1w7fuAylt6lcdiLQxmIGbrLZLs/bgBWNXGHWllEoDkK7HZt9ychT
-# qOhx0dyE0slGelBwdBIubqxHiXE7URZOATY/VPqBKeI9Gkd/1kilC3eoJr84WmFC
-# Vt5h87Nm/LZBG3w6lVEmip3+LtfN+oy7b3D5/NR3TCO04dvvFEVr3Wrbit9RB/0R
-# 7U4KNLBpsaIp2XZ6uPjivEypOQ2fEj/P2TMj3zJG1zyCX7zFCuX8GuUeV4QcHeUN
-# yrxXdbHhJm3JMTxBDarS4r+IYFJ/eAP8orcsuHPCTLEtPJYothL37dCAKjVaw5mh
-# D7E6k15md6+eY30yO+fNhGjarnYFN7W8GArpdS4q1WyFzVEifGB/UVgIqC/xjtC5
-# 5OGMMYZ5Cl9QBojTvwwmPdx/GLcci9gMdZpXBKjyym+KJJaRbO4TetWpNoRj2rDB
-# hUnA452nopRN14P/hE8C37Hv8ujMqDxpuYh+4+JcswXmQtJ2hJmsQBM3tNQ+iI5E
-# Op/anh3OYIH30IPSL/+qLb5kZtL1pLkZzjKREPeT0ujgv8+jhIwSLUBMpclf0p4R
-# uFXmFgLe/idmydRBag4QawsyE2AWbxZCkP8zHA5GYvSkLsYbjVDXdPxFDSO2hpfP
-# rWA6ew8+9FyeN99WiV3wgRtLVn+zCEbUVqfmhiMGtQ2soYIXWjCCF1YGCisGAQQB
+# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIHNo
+# 13iedI3kmtHPuQDU4h+fKMMJttZLjZdYgv082QGVMA0GCSqGSIb3DQEBAQUABIIC
+# AFesGZtWpYc6ma248XmPaCT0Fe49fye8SbsahXCZChJ4xsoraPr8jQyEWaJAYMMn
+# 1bZ0i1UdHnO/BGP/SdFAAEoEZNktTSmIjV/xy/TciPBLfU22JWzbimoq7fNzdUpx
+# EsI0ngV3ZnxT25Yt1M7Hk5XzJT7f5Bt3Nq3fkgk0GLwcJBFXgNhoy+IiJRPg2FJR
+# sUv3R3MQKeiaKO2jcsfrpZQQ8A2Aa97VIrytd5nJECT+mL5k5Jx4yjDwgzI33ZQI
+# pGgx1cdb91nYu5lHsg+wJgDR8u3wU49lqCX8Upn2R8g+u04jp55l6+Y4h5NwulOO
+# a1aqAFFAU7sE4Jz3zCkzmxCgqzYJOCoNfT8dOO4jSendZy9HNWgDFRU0/5oDzhAG
+# DYZEAabA1QXJeJDIVAaTyj06tjx794SwxXXIPj8hjK24YubZ1HilSIO0OpiMlhD0
+# v5bCATXQsigWeTSlOXAIeADxVAygWdW2S+xk6kVCE30Xm6+hxiwWUxuZZwHTRW7w
+# rVUIgOQbDX/LQjZwDklcPzFukl6qhIIeUgIwo6JwrDZJzQdQoP+1deoXZkLSgUQo
+# JI39CufcQzh6qZ4xrSqWLl3LX0qhkugKQ00T/8tF4HexmaSzGQfQISBr7UmDcoRK
+# Ug6cVSYRpaSiItsFFFrEo0TP3plqHhIkBG72nBvPp/o7oYIXWjCCF1YGCisGAQQB
 # gjcDAwExghdGMIIXQgYJKoZIhvcNAQcCoIIXMzCCFy8CAQMxDzANBglghkgBZQME
 # AgIFADCBhwYLKoZIhvcNAQkQAQSgeAR2MHQCAQEGCWCGSAGG/WwHATBBMA0GCWCG
-# SAFlAwQCAgUABDCeV5w74m/dNhyBTXjqNepv/rgk+oH2x3oysJ4h6vuPGfU2kZxs
-# VVGynMy/yrCpgFECECnVV1zwbyNVeQVhYmDmGU4YDzIwMjQxMjExMDMwNzQxWqCC
+# SAFlAwQCAgUABDAoIfE/ZhQ8S/nIAh9M94VF6zdKXKyX/wBZVBiJNcvJJLCRpWEs
+# Si0VpiCfH4nZStoCEBUvjtSFzhzYoyS+5UBGJqIYDzIwMjQxMjExMTAwNjQ5WqCC
 # EwMwgga8MIIEpKADAgECAhALrma8Wrp/lYfG+ekE4zMEMA0GCSqGSIb3DQEBCwUA
 # MGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UE
 # AxMyRGlnaUNlcnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBp
@@ -296,20 +322,20 @@ else {
 # UzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRy
 # dXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENBAhALrma8Wrp/
 # lYfG+ekE4zMEMA0GCWCGSAFlAwQCAgUAoIHhMBoGCSqGSIb3DQEJAzENBgsqhkiG
-# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMDMwNzQxWjArBgsqhkiG9w0B
+# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMTAwNjQ5WjArBgsqhkiG9w0B
 # CRACDDEcMBowGDAWBBTb04XuYtvSPnvk9nFIUIck1YZbRTA3BgsqhkiG9w0BCRAC
 # LzEoMCYwJDAiBCB2dp+o8mMvH0MLOiMwrtZWdf7Xc9sF1mW5BZOYQ4+a2zA/Bgkq
-# hkiG9w0BCQQxMgQw2hMFvbnW3b61FCcrcaoNF1Nhh4TCGHAKwBBxnAJuh9YHJj7R
-# GJWtxsBg25TqfQg+MA0GCSqGSIb3DQEBAQUABIICAANH/HjcGFqZjYEr+qkgelYK
-# +SUyvGYM1QPBA0pf3EibgNc7ZVaa2useojlTAFBukt5/+EIO2Q9tK+Tag7UZlBmZ
-# KgGhmrp03IqIjM5AqTwfBHZAl0v1hXwsEAo99a0zRQyb0nEr78x6eJBWMSXg43H6
-# xucswuc4mkKragMRUGQ5wMpAVv/MWullTYggNxG1HXtMkMCw8ckxapiyPlK7Pr5z
-# rFKlrZCn/EU/AL+UPpWOPHnxpVgdeVapX+0aG3qeUHosc4gmfu9cb28/Ubykj7JA
-# rVZF/31N+K/HAinvFhOgjrD2xmQ9nDwTsuRbVTitzaHNK0XHLsoaFd/USM5CSalS
-# Cnwu6iqvOCZXnrjPedDLkRvBqqMH32lyStsOrTHoxLwMS/d8RsI2FzCRWW5YHdlT
-# nAyEYudVxzKHFG35VHZqdXQnAdJbNzj9b27mAiI9FBv5vqfHs7TEB0cZCILgxfgD
-# EGdG2NjAzCRzG4shXsETzjJpbKgI2aNeBH+R5xKSJdZYwhJEnLoM7iacn1zYvrSC
-# uBesr+cQBXPYrbUliCGm+fErUuRz2xDvRqtjAfqZWNRRJhf+rvQfdFLBA0ZMERsB
-# 0Ulyl414MyLOzLkNdypyA2Uyfv/q8qPqkhdQ+zzCFo08AfgQvTpYKbd6amMXwKk6
-# 2jaqlzd7dBavA6qViPJe
+# hkiG9w0BCQQxMgQwUdZ5VluT4J4NSEc3kL7ioVOHbrNzr4tamdIBF+qkkB9Yt6eD
+# F5UYxtajn4uOWU9rMA0GCSqGSIb3DQEBAQUABIICABgNF0IR60UOdYhsizt+9Ve+
+# 5OJ/byAKEV3appsuduJlESLfdkRbbHtQZR6VCILguOBDpjohl+xZTf4DiQvxA8UN
+# jcLzEBR4d4vgj0pxaiqsX75p6gd04ElV7B56ZC133MdJkFf7ygrgJIbf1IJKd1F2
+# q5fpjOmztDFohYc66MfVbr79DaJsCAXeem4vb8lHNLDSoZb9bBoDLbH/7iOhBI6h
+# T8yRj/v7xf2pO2tyYWdzLoyZU8JlBRqK8ufPl+H2xQHWfIeviG4ByNZBD8B+xhLr
+# lpx2yWQtkDdFDdPRNGVK4fv+eI/lMi3LxdGKp7kcArUO2RKfF+GKGXr/2awJLWHL
+# aJSfSeEXPeI2OK5A4/6/7KEOQaTjvWeEaS1Pttiz+a40Ekv6EqBZUWbZMI1IPfm7
+# lht0nyHR2OZYNwczi62X6vT7zvotacRBmEooS8A6zRWrO1uhLkbQ6TCEbR+zGLby
+# mhhkAmSzgj8I1fNrYkgXk6RQWt9sL2B6iBEvmcti3zdcCQJdzW74l7SDSbWPfp6U
+# xsr+Kiykl+PxTSBVtmGLNEQU5ayR4C6MRqj1T1UEpGKrwpa5wVhZiqVs2vQPtDy5
+# gApBTYVY66atMigr5wypcnwqa2hivnfqYgy9a6Kl18e5YNfyDo8yFsVHALd1L+jN
+# c1FKA15VN0e1Rg2WyLbk
 # SIG # End signature block

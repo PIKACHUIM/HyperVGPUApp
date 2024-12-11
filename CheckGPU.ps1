@@ -1,33 +1,94 @@
-# 参数：虚拟机名称
-param(
-    [string]$VMName,
-    [string]$GPUName
-)
-
-if (-not $VMName) {
-    Write-Error "Please provide a VM name."
-    exit
+﻿Function Get-DesktopPC
+{
+    $isDesktop = $true
+    if (Get-WmiObject -Class win32_systemenclosure | Where-Object { $_.chassistypes -eq 9 -or $_.chassistypes -eq 10 -or $_.chassistypes -eq 14 })
+    {
+        #Write-Warning "Computer is a laptop. Laptop dedicated GPU's that are partitioned and assigned to VM may not work with Parsec."
+        #Write-Warning "Thunderbolt 3 or 4 dock based GPU's may work"
+        $isDesktop = $false
+    }
+    if (Get-WmiObject -Class win32_battery)
+    {
+        $isDesktop = $false
+    }
+    $isDesktop
 }
 
-if (-not $GPUName) {
-    Write-Error "Please provide a GPU name."
-    exit
+Function Get-WindowsCompatibleOS
+{
+    $build = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    if ($build.CurrentBuild -ge 19041 -and ($( $build.editionid -like 'Professional*' ) -or $( $build.editionid -like 'Enterprise*' ) -or $( $build.editionid -like 'Education*' ) -or $( $build.editionid -like 'Server*' )))
+    {
+        Return $true
+    }
+    Else
+    {
+        #Write-Warning "Only Windows 10 20H1 or Windows 11 (Pro or Enterprise) is supported"
+        Return $true
+        # Return $false
+    }
 }
-Import-Module $PSSCriptRoot\CopyFile.psm1
 
-$VM = Get-VM -Name $VMName
-$VHDPath = (Get-VMHardDiskDrive -VM $VM | Select-Object -First 1).Path
-Mount-VHD -Path $VHDPath
-$Disk = Get-Disk | Where-Object { $_.Location -eq $VHDPath }
-$Partition = Get-Partition -DiskNumber $Disk.Number | Where-Object { $_.Type -eq 'NTFS' -or ($_.Type -eq 'Basic')} | Select-Object -First 1
-$DriveLetter = $Partition.DriveLetter
-Add-VMGpuPartitionAdapterFiles -GPUName $GPUName -DriveLetter $DriveLetter
-Dismount-VHD -Path $VHDPath -ErrorAction Stop
+
+Function Get-HyperVEnabled
+{
+    if (Get-WindowsOptionalFeature -Online | Where-Object FeatureName -Like 'Microsoft-Hyper-V-All')
+    {
+        Return $true
+    }
+    elseif (Get-WindowsOptionalFeature -Online | Where-Object FeatureName -Like 'Microsoft-Hyper-V')
+    {
+        Return $true
+    }
+    Else
+    {
+        #Write-Warning "You need to enable Virtualisation in your motherboard and then add the Hyper-V Windows Feature and reboot"
+        Return $false
+    }
+}
+
+Function Get-WSLEnabled
+{
+    if ((wsl -l -v)[2].length -gt 1)
+    {
+        #Write-Warning "WSL is Enabled. This may interferre with GPU-P and produce an error 43 in the VM"
+        Return $true
+    }
+    Else
+    {
+        Return $false
+    }
+}
+
+Function Get-VMGpuPartitionAdapterFriendlyName
+{
+    $Devices = (Get-WmiObject -Class "Msvm_PartitionableGpu" -ComputerName $env:COMPUTERNAME -Namespace "ROOT\virtualization\v2").name
+    Foreach ($GPU in $Devices)
+    {
+        $GPUParse = $GPU.Split('#')[1]
+        $GPU_Name = Get-WmiObject Win32_PNPSignedDriver | where { ($_.HardwareID -eq "PCI\$GPUParse") } | select DeviceName -ExpandProperty DeviceName
+        Write-Host $GPU_Name"|||"$GPU
+    }
+}
+
+If ((Get-DesktopPC) -and (Get-WindowsCompatibleOS) -and (Get-HyperVEnabled))
+{
+    #    "System Compatible"
+    #    "Printing a list of compatible GPUs...May take a second"
+    #    "Copy the name of the GPU you want to share..."
+    Get-VMGpuPartitionAdapterFriendlyName
+    #Read-Host -Prompt "Press Enter to Exit"
+}
+else
+{
+    #Read-Host -Prompt "Press Enter to Exit"
+}
+
 # SIG # Begin signature block
 # MIItOwYJKoZIhvcNAQcCoIItLDCCLSgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB4VxfZ/bRt7vQK
-# BjPpUZgXyDzuaF2/FXg+eNt5txiDMKCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAAyl70HHDQB3+7
+# qPIzkoMG7S5+JhHbyxF9hOG/1nnlbKCCEiEwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -128,23 +189,23 @@ Dismount-VHD -Path $VHDPath -ErrorAction Stop
 # Ew9TZWN0aWdvIExpbWl0ZWQxKzApBgNVBAMTIlNlY3RpZ28gUHVibGljIENvZGUg
 # U2lnbmluZyBDQSBSMzYCEQDJQtVKxGjxZ+PGgaihP65RMA0GCWCGSAFlAwQCAQUA
 # oHwwEAYKKwYBBAGCNwIBDDECMAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQw
-# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEINim
-# 9Jgy2Dpj//kgm5KLQY3Ol3Q6bI/c4YS4vnSoolXQMA0GCSqGSIb3DQEBAQUABIIC
-# AC7dtZSPS4IE6YnpmZyXEsgeoNbnP9Ex70/IU5zMeKKHAt2Goq9MdRx1iMYXahmE
-# FXQ+G+02TQIT3M/p7h8yML57Sng/xd4lZ23cVEJ0xW/A1T49/XiOuf0eaOgvIbEZ
-# ks0c5iQm+Bv5M5kHuzVHk8iUqwy3zZaTgdKE7Wio45ejnkS5DEo4CDxaDI8z0KAE
-# P+OoEgZ5qbfEiYj0sz+vRgc4ACnrq0PrzkXUPfW4CaAh+Vbv6yZ3b5u/dczlgRT/
-# 8oBwNKpryahQr0LUaTtpUp4XzHnGdJNLRUA6F6TfkoiiR8NDyFnbQ5lHBxbyWZOO
-# Ksm/8DIi6014y2PGOlUQzk4reEfizX5LnLu79dvyYkInyMQ6fXuzi2aU0oDJOl1O
-# Hzg0D1Yk/IqbV1dP4/PPCvpNrQOUIS05oMEv5/gekE5JycLHDFNGoT9Ns+XTUkaQ
-# qnXKeYXBC5zRv6x6wmqLFglJEdo4vJ8E3iF1sDx+DI0Hr3n/K8akMGxrOwZW8Xxj
-# e9BUFf32HIvIyrpq/2WkS+N0qUaSyTfue1NkRNtJiMJWvSHA5SCcY/vhjBcgPyQ6
-# olY69o4ZICW/vzfi88h60SzeFI1o0kmqAO06tJ1zh1+mhL+gJxUrK+QPdVb2F3jq
-# 0Askib8tm2JRfuyv11kUs7khre3iouM+sDe3d+1aeVjWoYIXWjCCF1YGCisGAQQB
+# HAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwLwYJKoZIhvcNAQkEMSIEIJYv
+# QGPCHqZee46rScaP+I5T2Mi9rkVLDmZ+gOfKdwxcMA0GCSqGSIb3DQEBAQUABIIC
+# AH7yibNh5Y9d4HRlEDlJLSigW6J36NnVcC2hYDKBe/8YApbtTAZ9jxhZzr5MCUHo
+# eRx9TEto0mtJoeki0YA/enroVnRaVICuiRKuItgGQK016+LyYe+xY7MUVmE8fO+o
+# ne67q3uBNRWRBSLEyQhHd4qS5I9rNf+dp/ONcP7MLFg9QCyhdW4blqMnMjUgq/zg
+# 8SpWao6WW9YZQgok6rq9xv/cnCsQ3LjEKr1fXPdcSl1I0v4PVcmiLcBaYeHQONDH
+# N5U5MtaSahY/q2oddz1JiyXUZEsfB6zyyLVCLEIGU+bq9qCLQSrrrrUhRcAwmSYa
+# uFG0KcX8/sWMYqzs5E9FoIoEktJVpnljoSAawzAG1vXFL4qVVpgzsAhUvZrI2fwa
+# GtlTBBz4WqjPffuKns9MpopLvAJVhsnefTXSJDTBSuqF6wyNwT54GmDdDqSn4MYR
+# KHLW1xeqwSR1bFIxu4J1I9iHpUoiiCH74VevhXdwH63xZ1teXfU8IA7B3Sql2HjN
+# jNdygx5/2D5wnT3qeLEvw5GN/1x8tpi4G0fBsbf27OUKQdcv9OQGGnu7WDk1rZ0h
+# klTJHLUfRDODt6qrm2D8RjYvdudJq8ZeY6luUiXnL99cTK8obYyTDALFCa5J4P3i
+# MT+ET7bGXTEtJHT1MQxFkls4KNw9jjkPM8amZtweCAWkoYIXWjCCF1YGCisGAQQB
 # gjcDAwExghdGMIIXQgYJKoZIhvcNAQcCoIIXMzCCFy8CAQMxDzANBglghkgBZQME
 # AgIFADCBhwYLKoZIhvcNAQkQAQSgeAR2MHQCAQEGCWCGSAGG/WwHATBBMA0GCWCG
-# SAFlAwQCAgUABDC6yrCNk/lxHA1PzscKOCvWLyzAO2o80RssLatlSBuBS30lzs26
-# ZFE4TjZ1kt9iDPICEDpVEqRyVnbJBgB/5GuNm2kYDzIwMjQxMjExMDMwNzQzWqCC
+# SAFlAwQCAgUABDBCPFFYtpt5IZ2a7CUnVy0hOn0rZXSMl35mvjEBcdV9jQI2R0ss
+# uPZGXJQZDvndI6MCEENOhGYiN+MwvCNjXTzyrl8YDzIwMjQxMjExMTAwNjUyWqCC
 # EwMwgga8MIIEpKADAgECAhALrma8Wrp/lYfG+ekE4zMEMA0GCSqGSIb3DQEBCwUA
 # MGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkGA1UE
 # AxMyRGlnaUNlcnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3RhbXBp
@@ -250,20 +311,20 @@ Dismount-VHD -Path $VHDPath -ErrorAction Stop
 # UzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRy
 # dXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0YW1waW5nIENBAhALrma8Wrp/
 # lYfG+ekE4zMEMA0GCWCGSAFlAwQCAgUAoIHhMBoGCSqGSIb3DQEJAzENBgsqhkiG
-# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMDMwNzQzWjArBgsqhkiG9w0B
+# 9w0BCRABBDAcBgkqhkiG9w0BCQUxDxcNMjQxMjExMTAwNjUyWjArBgsqhkiG9w0B
 # CRACDDEcMBowGDAWBBTb04XuYtvSPnvk9nFIUIck1YZbRTA3BgsqhkiG9w0BCRAC
 # LzEoMCYwJDAiBCB2dp+o8mMvH0MLOiMwrtZWdf7Xc9sF1mW5BZOYQ4+a2zA/Bgkq
-# hkiG9w0BCQQxMgQwEduac9aJmDlNVtbRZvtV92XrLzZChFhDBScckIGMDieIA6rW
-# 12TIVjSluZzySpjPMA0GCSqGSIb3DQEBAQUABIICAHqQl6IO8mhEgoIV+ySSes/S
-# Jwzu4fGHwDb0TFXNN6BU3Lg4e7snTUEJRne/2gTBL78ohUQEbVyGsPXdraSgNiUs
-# F3nCh/zji5FY8dxPZIByURLn9iIi/pTJRcgjPJvV8K/ncqheK1ft7GDEnlZ2v1e+
-# 5yYhQc7o3QaDgxr5nLD6dt2Xag4KBTeC70Q6q8V79kMfDXT0vmsfSl2Evus7kqiv
-# bCnxk/Yvmvscxjbl6JpxrhaoVuHq0j+PIr+1oRnZBaL4Dj/1wwtRGrzCohtaosmD
-# pZiiGyg6xV/7CUr31oRjJYSXqbKuu0ZsngdaRGZKoriFl5R+CmqnQuBSSXxhU42D
-# ozVJ+46fu5mphsQ4RJzuf7AFa7oDWsbL5N2ueoFx4olUvk4UYNH8XOmnLadPap4A
-# QxxWHQZJlYBVYMe5MDhnbP9tk6fNZ3y+0TOCwwMJ+HLauimabDttT6SkBvB9CvJn
-# EkSIWFU1gdF+xMKhmRkx9S6fMzNmYYfCMwt4eSzgtf+91qSeonmyAZZDYPJ4HAoJ
-# eTw27mKdL6ucxBLR8VmbgN9EECOkATpzsKahk3Jtn5PrmJEBKuXRYCjAi1Sz7W0j
-# QG03eCVnvM2AKs9ov1FibWZ67IMxlIefF3hu5EkihhpmK2/2GaubKXIlRl1MMg2v
-# bZ9QWtGuRZoSO/asnOQk
+# hkiG9w0BCQQxMgQwBOj8YaBupZQcTe8sA9rvhvA4D49oOP4ega0w3bk60EfbmU/i
+# S6Yv8opnmcFRzUqKMA0GCSqGSIb3DQEBAQUABIICAGj+AIjP+6Q0XI6+CLM6Q9Kv
+# xMNAmaJ1mkZkpFJogMIXVaM+iJ4FXLZ7OUsGmeh9DqT3rmAhJ8PkIu4YbuWICdlW
+# xxccYm+gjVOI490p88A07o1iqJ0k0czpZ/jCoHEbyjgUozqfSU4WA6Yy04ROSEk5
+# g2D9izzhvnViqQJpFLGOK/evW4SnTdQqR6RK7K8PN2ni2e7Ho8kIgF70e5dsVk5m
+# TuIeT8Z8stU/ZcWIlnDH7N3zG647eNSQQuCz3hknUQdllRaNcnYWKlfahn2mcZxL
+# YE0tsudUWYSkwU7pwPZvRU4l/ymC+39qzq4p17pylt9y5zDn+s8seA45PCmWv38v
+# Dk6VNyFECHywOXtnJNnruDNm717VCz5bdWJEV7p8Z7QPJMCBNzDzryFGkkI9JDwn
+# jA/0UXcSNimFX+CHbsEdF4KMFDluv/kXYHZZB28OlBsmxPG6lFsIfECap0XmzUid
+# GbOalJvY61yO3lijxOusRS/Vip7Y5Gv80wWqnNsdjY7k0XsIYK9ITAjnJxUGQy5R
+# Z31me5ZeKQChtRYyvdKIU7RtEMKFVAYWHpCXwZt+FNbb0NsMh9f9YM1w1sontO1V
+# 6UNal2kL1M5Vj6LeUPlqkVNLR7sZ4PUNGIbSKZ+7D04hoMW+M0/c5ON43icjQMuG
+# 23//WTaDPV6uugxgg8n/
 # SIG # End signature block

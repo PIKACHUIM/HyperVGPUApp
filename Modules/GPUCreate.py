@@ -2,7 +2,6 @@ import threading
 import subprocess
 from ttkbootstrap import *
 from Modules.LogOutput import Log, LL
-from UIConfig import Function
 
 
 class GPUCreate(threading.Thread):
