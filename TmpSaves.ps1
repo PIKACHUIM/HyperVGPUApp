@@ -1,3 +1,24 @@
+$params = @{
+VMName = "Win10-GPU"
+SourcePath = "G:/VBoxs/Windows10-LTSC-2021-19044.3803_X64-EasyLite-isUpdate-withNet-2023.12.14.wim.iso"
+Edition = 1
+VhdFormat  = "VHDX"
+DiskLayout = "UEFI"
+SizeBytes  = 32GB
+MemoryAmount = 8GB
+CPUCores = 8
+NetworkSwitch = "Router Switch"
+VHDPath = "G:/VBoxs/Win10-GPU"
+UnattendPath = "$PSScriptRoot"+"\Scripts\autounattend.xml"
+GPUName = "Intel(R) UHD Graphics 630"
+GPUResourceAllocationPercentage = 90
+Team_ID = ""
+Key = ""
+Username = "pika"
+Password = "IM0612"
+Autologon = "false"
+}
+
 Import-Module $PSSCriptRoot\Scripts\CopyFile.psm1
 
 function Is-Administrator

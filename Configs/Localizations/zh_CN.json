@@ -15,7 +15,7 @@
   "vhd_path_open": "打开",
   "net_name": "网卡绑定",
   "net_name_open": "刷新",
-  "ver_name": "系统版本",
+  "ver_name": "镜像编号",
   "vhd_type": "虚拟机磁盘类型",
   "use_boot": "虚拟机启动类型",
   "vhd_size": "硬盘大小",

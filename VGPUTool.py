@@ -214,6 +214,10 @@ class VGPUTool:
     def url_github(url=""):
         webbrowser.open(url)
 
+    def checks_iso(self):
+        "wimlib-imagex.exe info G:/VBoxs/install.wim"
+        pass
+
     # 设置按钮绑定 ################################################################
     def config_exe(self):
         t = self.view["gpv_init"]
