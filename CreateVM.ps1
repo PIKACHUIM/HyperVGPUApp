@@ -4453,7 +4453,7 @@ Function New-GPUEnabledVM
         Set-VMHost -ComputerName $ENV:Computername -EnableEnhancedSessionMode $false
         Set-VMVideo -VMName $VMName -HorizontalResolution 1920 -VerticalResolution 1080
         Set-VMKeyProtector -VMName $VMName -NewLocalKeyProtector
-        Enable-VMTPM -VMName $VMName
+        # Enable-VMTPM -VMName $VMName
         Add-VMDvdDrive -VMName $VMName -Path $SourcePath
         Assign-VMGPUPartitionAdapter -GPUName $GPUName -VMName $VMName -GPUResourceAllocationPercentage $GPUResourceAllocationPercentage
         Write-Host "INFO   : Starting and connecting to VM"
