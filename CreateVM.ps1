@@ -4469,7 +4469,7 @@ Check-Params @params
 
 New-GPUEnabledVM @params
 
-Start-VM -Name $params.VMName
+start powershell "Start-VM -Name $params.VMName"
 
 SmartExit -ExitReason "If all went well the Virtual Machine will have started, 
 In a few minutes it will load the Windows desktop, 

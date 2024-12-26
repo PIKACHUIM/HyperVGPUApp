@@ -1,22 +1,22 @@
 $params = @{
-VMName = "Win10-GPU"
-SourcePath = "G:/VBoxs/Windows10-LTSC-2021-19044.3803_X64-EasyLite-isUpdate-withNet-2023.12.14.wim.iso"
-Edition = 1
+VMName = "Win11-GPU"
+SourcePath = "G:/VBoxs/zh-cn_windows_11_enterprise_ltsc_2024_x64_dvd_cff9cd2d.iso"
+Edition = 6
 VhdFormat  = "VHDX"
 DiskLayout = "UEFI"
-SizeBytes  = 32GB
+SizeBytes  = 64GB
 MemoryAmount = 8GB
 CPUCores = 8
 NetworkSwitch = "Router Switch"
-VHDPath = "G:/VBoxs/Win10-GPU"
+VHDPath = "G:/VBoxs/Win11-GPU"
 UnattendPath = "$PSScriptRoot"+"\Scripts\autounattend.xml"
-GPUName = "Intel(R) UHD Graphics 630"
+GPUName = "NVIDIA GeForce RTX 2060"
 GPUResourceAllocationPercentage = 90
 Team_ID = ""
 Key = ""
 Username = "pika"
 Password = "IM0612"
-Autologon = "false"
+Autologon = "true"
 }
 
 Import-Module $PSSCriptRoot\Scripts\CopyFile.psm1
@@ -4474,7 +4474,7 @@ Function New-GPUEnabledVM
         Set-VMHost -ComputerName $ENV:Computername -EnableEnhancedSessionMode $false
         Set-VMVideo -VMName $VMName -HorizontalResolution 1920 -VerticalResolution 1080
         Set-VMKeyProtector -VMName $VMName -NewLocalKeyProtector
-        Enable-VMTPM -VMName $VMName
+        # Enable-VMTPM -VMName $VMName
         Add-VMDvdDrive -VMName $VMName -Path $SourcePath
         Assign-VMGPUPartitionAdapter -GPUName $GPUName -VMName $VMName -GPUResourceAllocationPercentage $GPUResourceAllocationPercentage
         Write-Host "INFO   : Starting and connecting to VM"
