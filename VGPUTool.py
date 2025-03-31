@@ -48,7 +48,7 @@ class VGPUTool:
         # DDA 设备 ============================================================
         self.dda_page = PCIConfig(self.logs, "")  # PCIConfig 设置界面
         # self.dda_page = None  # PCIConfig 设置界面
-        self.dda_flag = platform.system().lower().find("server") >= 0
+        self.dda_flag = str(platform.platform()).lower().find("server") >= 0
         self.dda_list = None  # Name->DDAData 当前电脑上所有可以但没有DDA的设备
         self.dda_last = None  # Path->DDAData 当前所选择的虚拟机已经DDA了的设备
         self.gpu_maps = {}  # GPU Name->GPU UUID映射可用GPU名称到实例路径以分配
